@@ -100,7 +100,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 			},
 		});
 		pi.registerCommand("ein:continuity", {
-			description: "Reconcile observed subagent results and explicitly allow one more operation when the journal is full.",
+			description: "Reconcile observed subagent results and explicitly allow one more in-flight operation when all running slots are full.",
 			handler: async (args, ctx): Promise<void> => {
 				if (!args.trim()) { notify(ctx, "Para seguir con tu tarea, escríbelo en lenguaje natural. Si se agota el registro, /ein:continuity continue autoriza una plaza adicional."); return; }
 				if (args.trim() !== "continue") { notify(ctx, "Usa /ein:continuity continue para ampliar el registro cuando esté lleno.", "warning"); return; }
@@ -110,13 +110,13 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 				if (!reconciled.ok) { notify(ctx, `continuity-continue=blocked;reason=${reconciled.reason}`, "error"); return; }
 				if (reconciled.value.active < reconciled.value.limit) {
 					limitNotified = false;
-					notify(ctx, `Puedes continuar tu tarea. Revisé ${reconciled.value.reconciled} resultados parciales; quedan ${reconciled.value.active} de ${reconciled.value.limit} operaciones abiertas.`);
+				notify(ctx, `Puedes continuar tu tarea. ${reconciled.value.active} operaciones en curso; ${reconciled.value.uncertain} resultados inciertos conservados para recuperación.`);
 					return;
 				}
 				const granted = current.grantActiveSlot();
 				if (!granted.ok) { notify(ctx, `continuity-continue=blocked;reason=${granted.reason}`, "error"); return; }
 				limitNotified = false;
-				notify(ctx, `Puedes continuar tu tarea. Autoricé una plaza adicional en el registro: ${reconciled.value.active} de ${OPERATION_LIMITS.active + (granted.journal.extraActiveSlots ?? 0)} operaciones abiertas.`, "warning");
+				notify(ctx, `Puedes continuar tu tarea. Autoricé una plaza adicional en el registro: ${reconciled.value.active} de ${OPERATION_LIMITS.active + (granted.journal.extraActiveSlots ?? 0)} operaciones en curso.`, "warning");
 			},
 		});
 
@@ -183,7 +183,7 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 					if (localWrite(event.toolName)) { continueLocalWrite(event.toolCallId, ctx); return; }
 					current.recordAdmissionDenied(input, "continuity-start-failed");
 					if (result.reason.startsWith("active-limit:")) {
-						if (!limitNotified) { limitNotified = true; notify(ctx, "El registro de continuidad está lleno. Usa /ein:continuity continue para autorizar una plaza adicional.", "warning"); }
+						if (!limitNotified) { limitNotified = true; notify(ctx, "Hay demasiadas operaciones en curso. Usa /ein:continuity continue para autorizar una plaza adicional.", "warning"); }
 						return { block: true, reason: "continuity-operation:active-limit;human-command=/ein:continuity continue" };
 					}
 					return { block: true, reason: `continuity-operation:${result.reason}` };
@@ -206,13 +206,13 @@ export function createEinContinuityExtension(dependencies: ExtensionDependencies
 		});
 		pi.registerTool({
 			name: "ein_continuity_recover", label: "Ein Recuperar operación", description: "Inspect an uncertain operation and explicitly resolve it against its native call and existing evidence. Does not retry tools or authorize new effects.",
-			parameters: { type: "object", required: ["action"], properties: { action: { type: "string", enum: ["inspect", "resolve", "reconcile-native"] }, id: { type: "string", description: "Omit on inspect to list unresolved operation IDs." }, token: { type: "string" }, assessment: { type: "object", required: ["kind", "summary", "callRef", "evidenceRefs", "evidencePaths"], properties: {
+			parameters: { type: "object", required: ["action"], properties: { action: { type: "string", enum: ["inspect", "resolve", "reconcile-native"] }, id: { type: "string", description: "Omit on inspect to list unresolved operation IDs, eight at a time." }, offset: { type: "number", description: "Pagination offset when inspecting the unresolved list." }, token: { type: "string" }, assessment: { type: "object", required: ["kind", "summary", "callRef", "evidenceRefs", "evidencePaths"], properties: {
 				kind: { type: "string", enum: ["local-attested", "external-observed"] }, summary: { type: "string" }, callRef: { type: "object", required: ["sessionRef", "toolCallId"], properties: { sessionRef: { type: "string" }, toolCallId: { type: "string" } } }, evidenceRefs: { type: "array", items: { type: "string" } }, evidencePaths: { type: "array", items: { type: "string" } },
 			} } } } as never,
-			async execute(_id, params: { action: string; id?: string; token?: string; assessment?: RecoveryAssessment }) {
+			async execute(_id, params: { action: string; id?: string; offset?: number; token?: string; assessment?: RecoveryAssessment }) {
 				const current = active();
 				const result = !current ? { ok: false, reason: "lifecycle-unavailable" }
-					: params.action === "inspect" ? params.id ? current.inspectOperation(params.id) : current.listOperations()
+					: params.action === "inspect" ? params.id ? current.inspectOperation(params.id) : current.listOperations(params.offset)
 					: params.action === "reconcile-native" ? current.reconcileNativeSubagents()
 					: params.action === "resolve" && params.id && params.token && params.assessment ? current.resolveOperation(params.id, params.token, params.assessment, "pi-coordinator")
 					: { ok: false, reason: "recovery-input-required" };

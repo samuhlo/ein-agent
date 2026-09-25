@@ -80,11 +80,33 @@ test("a full legacy journal reconciles only native observed subagents, then acce
   expect(transactContinuityOperations(cwd, "absent", () => operations).ok).toBe(true);
   const evidence = createContinuityRecoveryEvidence(cwd, { sessionId: () => "fixture", entries: () => entries });
   const runtime = createContinuityOperationRuntime(cwd, { evidence });
-  expect(runtime.reconcileNativeSubagents()).toEqual({ ok: true, value: { reconciled: 30, active: 2, limit: 32 } });
+  expect(runtime.reconcileNativeSubagents()).toEqual({ ok: true, value: { reconciled: 30, active: 0, uncertain: 2, limit: 32 } });
   const journal = readContinuityOperations(cwd); if (journal.status !== "valid") throw new Error("journal unavailable");
   expect(journal.journal.operations.filter((op) => op.status === "settled" && op.outcome === "observed")).toHaveLength(30);
   expect(journal.journal.operations.filter((op) => op.status === "uncertain")).toHaveLength(2);
   expect(runtime.begin({ runtime: "pi", tool: "bash", inputDigest: operationInputDigest({ command: "bun test" }), nativeCallRef: { sessionRef: sessionReferenceFor("pi", "fixture"), toolCallId: "next" }, effectScope: "external-or-unknown" }).ok).toBe(true);
+});
+
+test("32 old failed results remain inspectable without blocking a new operation", () => {
+	const { cwd } = fixture();
+	const old = Array.from({ length: 32 }, (_, index) => {
+		const nativeCallRef = { sessionRef: sessionReferenceFor("pi", "old-session"), toolCallId: `failed-${index}` };
+		return { id: operationId("pi", nativeCallRef), runtime: "pi" as const, tool: "subagent", inputDigest: operationInputDigest({ index }), nativeCallRef,
+			startedAt: new Date().toISOString(), beforeStateRef: null, effectScope: "external-or-unknown" as const, status: "uncertain" as const, reason: "native-failed" };
+	});
+	expect(transactContinuityOperations(cwd, "absent", () => old).ok).toBe(true);
+	const runtime = createContinuityOperationRuntime(cwd);
+	expect(runtime.uncertain()).toBe(true);
+	expect(runtime.reconcileNativeSubagents()).toMatchObject({ ok: true, value: { active: 0, uncertain: 32, limit: 32 } });
+	const first = runtime.list();
+	expect(first).toMatchObject({ ok: true, total: 32, nextOffset: 8 });
+	if (!first.ok) return;
+	expect(first.operations).toHaveLength(8);
+	expect(runtime.list(8)).toMatchObject({ ok: true, total: 32, nextOffset: 16 });
+	const next = { runtime: "pi" as const, tool: "bash", inputDigest: operationInputDigest({ command: "git status" }),
+		nativeCallRef: { sessionRef: sessionReferenceFor("pi", "current-session"), toolCallId: "new-work" }, effectScope: "external-or-unknown" as const };
+	expect(runtime.begin(next).ok).toBe(true);
+	expect(runtime.read()).toMatchObject({ status: "valid", journal: { operations: expect.arrayContaining([{ ...old[0] }]) } });
 });
 
 test("a human slot grant is durable and leaves every genuinely uncertain operation intact", () => {
