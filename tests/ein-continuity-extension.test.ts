@@ -73,11 +73,37 @@ describe("ein continuity extension", () => {
 		let grants = 0;
 		const instance = lifecycle({ reconcileNativeSubagents: () => ({ ok: true, value: { reconciled: 30, active: 2, limit: 32 } }), grantActiveSlot: () => { grants++; throw new Error("not needed"); } });
 		const app = harness([instance]); await app.emit("session_start", {});
+		await app.continuityCommand("", app.context());
+		expect(app.notifications.at(-1)).toBe("Para seguir con tu tarea, escríbelo en lenguaje natural. Si se agota el registro, /ein:continuity continue autoriza una plaza adicional.");
 		await app.continuityCommand("continue", app.context());
-		expect(grants).toBe(0); expect(app.notifications.at(-1)).toBe("continuity-continue=ready;reconciled=30;active=2;limit=32");
+		expect(grants).toBe(0); expect(app.notifications.at(-1)).toBe("Puedes continuar tu tarea. Revisé 30 resultados parciales; quedan 2 de 32 operaciones abiertas.");
 		const full = lifecycle({ reconcileNativeSubagents: () => ({ ok: true, value: { reconciled: 0, active: 32, limit: 32 } }), grantActiveSlot: () => ({ ok: true, journal: { schemaVersion: 1, revision: "fixture", operations: [], extraActiveSlots: 1 } }) });
 		const second = harness([full]); await second.emit("session_start", {}); await second.continuityCommand("continue", second.context());
-		expect(second.notifications.at(-1)).toBe("continuity-continue=ready;reconciled=0;active=32;limit=33;human-grant=1");
+		expect(second.notifications.at(-1)).toBe("Puedes continuar tu tarea. Autoricé una plaza adicional en el registro: 32 de 33 operaciones abiertas.");
+	});
+
+	test("a normal delegation reconciles a full journal and retries admission once", async () => {
+		let starts = 0, reconciliations = 0;
+		const instance = lifecycle({ beginOperation: () => ++starts === 1
+			? { ok: false, reason: "active-limit:old-id", outcome: "not-published" }
+			: { ok: true, journal: { schemaVersion: 1, revision: "fixture", operations: [] } },
+			reconcileNativeSubagents: () => { reconciliations++; return { ok: true, value: { reconciled: 13, active: 19, limit: 32 } }; } });
+		const app = harness([instance]); const ctx = app.context({ sessionManager: { getBranch: () => [], getSessionId: () => "fixture-session" } });
+		await app.emit("session_start", {}, ctx);
+		expect(await app.emit("tool_call", { toolName: "subagent", toolCallId: "next-group", input: { agent: "sdd-apply", task: "group 006" } }, ctx)).toBeUndefined();
+		expect(starts).toBe(2); expect(reconciliations).toBe(1); expect(app.notifications).toEqual([]);
+	});
+
+	test("a genuinely full journal gives the human one clear manual action", async () => {
+		const instance = lifecycle({ beginOperation: () => ({ ok: false, reason: "active-limit:private-ids", outcome: "not-published" }),
+			reconcileNativeSubagents: () => ({ ok: true, value: { reconciled: 0, active: 32, limit: 32 } }) });
+		const app = harness([instance]); const ctx = app.context({ sessionManager: { getBranch: () => [], getSessionId: () => "fixture-session" } });
+		await app.emit("session_start", {}, ctx);
+		for (const toolCallId of ["first", "second"]) {
+			expect(await app.emit("tool_call", { toolName: "subagent", toolCallId, input: { agent: "sdd-apply", task: "group 006" } }, ctx))
+				.toEqual({ block: true, reason: "continuity-operation:active-limit;human-command=/ein:continuity continue" });
+		}
+		expect(app.notifications).toEqual(["El registro de continuidad está lleno. Usa /ein:continuity continue para autorizar una plaza adicional."]);
 	});
 
 	test("the model can reconcile native results but cannot grant an extra slot through the tool", async () => {
