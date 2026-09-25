@@ -51,11 +51,25 @@ export function observeContinuityGuard(handler: (event: ToolCallEvent, ctx: Exte
     return result instanceof Promise ? result.then(observe) : observe(result);
   };
 }
-export function continuityToolOutcome(event: { toolName: string; isError: boolean; input?: unknown; details?: unknown; content?: unknown }): "succeeded" | "failed" | "unavailable" {
+export function continuityToolOutcome(event: { toolName: string; isError: boolean; input?: unknown; details?: unknown; content?: unknown }): "succeeded" | "observed" | "failed" | "unavailable" {
   if (event.isError) return "failed";
   if (event.toolName !== "subagent") return "succeeded";
   const items = collectDelegationItems(event.input);
   if (items.length !== 1 || !items[0]?.agent || !items[0].task) return "unavailable";
   const terminal = recognizePiParticipantTerminal({ ...event, details: event.details, agent: items[0].agent, task: items[0].task, callMatched: true });
-  return terminal.status === "complete" ? "succeeded" : "unavailable";
+  if (terminal.status === "complete") return "succeeded";
+  const details = event.details as { mode?: unknown; results?: unknown } | undefined;
+  const child = details?.mode === "single" && Array.isArray(details.results) && details.results.length === 1 ? details.results[0] : undefined;
+  const report: string = typeof child?.finalOutput === "string" ? child.finalOutput.trim() : "";
+  const statusLines = report.split(/\r?\n/).filter((line) => /^\s*status\s*:/.test(line));
+  let partial = statusLines.length === 1 && /^\s*status\s*:\s*partial\s*$/.test(statusLines[0]!);
+  if (report.startsWith("{")) {
+    try { const parsed = JSON.parse(report); partial = parsed && typeof parsed === "object" && parsed.status === "partial"; }
+    catch { partial = false; }
+  }
+  if (child && typeof child === "object" && child.agent === items[0].agent
+    && (child.task === items[0].task || child.task === "[prompt redacted]")
+    && child.exitCode === 0 && child.error === undefined && child.timedOut !== true && child.stopped !== true && child.interrupted !== true
+    && report && (terminal.status === "blocked" || partial)) return "observed";
+  return "unavailable";
 }

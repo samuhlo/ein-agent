@@ -8,6 +8,7 @@ import { createContinuityHandoffLifecycle } from "../ein-pi/agent/lib/continuity
 import { operationId, operationInputDigest } from "../ein-pi/agent/lib/continuity-operations.ts";
 import { sessionReferenceFor } from "../ein-pi/agent/lib/runtime-session-identity.ts";
 import { createContinuityRecoveryEvidence, continuityEvidenceRef } from "../ein-pi/agent/lib/continuity-recovery-evidence.ts";
+import { readContinuityOperations, transactContinuityOperations } from "../ein-pi/agent/lib/continuity-operation-store.ts";
 
 const roots: string[] = [];
 afterEach(() => roots.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true })));
@@ -61,6 +62,47 @@ test("native call missing or external evidence unavailable cannot settle uncerta
   expect(runtime.resolve(id, view.value.token, assessment, "pi-coordinator")).toMatchObject({ ok: false, reason: "external-proof-required" });
   expect(runtime.resolve(id, view.value.token, { ...assessment, evidenceRefs: ["invented"] }, "pi-coordinator").ok).toBe(false);
   expect(runtime.uncertain()).toBe(true);
+});
+
+test("a full legacy journal reconciles only native observed subagents, then accepts the next operation", () => {
+  const { cwd } = fixture();
+  const entries: unknown[] = [];
+  const operations = Array.from({ length: 32 }, (_, index) => {
+    const toolCallId = `child-${index}`, nativeCallRef = { sessionRef: sessionReferenceFor("pi", "fixture"), toolCallId };
+    const input = { agent: "sdd-apply", task: `group-${index}` };
+    if (index < 31) {
+      entries.push({ message: { role: "assistant", content: [{ type: "toolCall", id: toolCallId, name: "subagent", arguments: input }] } });
+      entries.push({ message: { role: "toolResult", toolCallId, isError: false, content: [{ type: "text", text: index < 30 ? "status: partial" : "status: complete" }] } });
+    }
+    return { id: operationId("pi", nativeCallRef), runtime: "pi" as const, tool: "subagent", inputDigest: operationInputDigest(input), nativeCallRef,
+      startedAt: new Date().toISOString(), beforeStateRef: null, effectScope: "external-or-unknown" as const, status: "uncertain" as const, reason: "native-unavailable" };
+  });
+  expect(transactContinuityOperations(cwd, "absent", () => operations).ok).toBe(true);
+  const evidence = createContinuityRecoveryEvidence(cwd, { sessionId: () => "fixture", entries: () => entries });
+  const runtime = createContinuityOperationRuntime(cwd, { evidence });
+  expect(runtime.reconcileNativeSubagents()).toEqual({ ok: true, value: { reconciled: 30, active: 2, limit: 32 } });
+  const journal = readContinuityOperations(cwd); if (journal.status !== "valid") throw new Error("journal unavailable");
+  expect(journal.journal.operations.filter((op) => op.status === "settled" && op.outcome === "observed")).toHaveLength(30);
+  expect(journal.journal.operations.filter((op) => op.status === "uncertain")).toHaveLength(2);
+  expect(runtime.begin({ runtime: "pi", tool: "bash", inputDigest: operationInputDigest({ command: "bun test" }), nativeCallRef: { sessionRef: sessionReferenceFor("pi", "fixture"), toolCallId: "next" }, effectScope: "external-or-unknown" }).ok).toBe(true);
+});
+
+test("a human slot grant is durable and leaves every genuinely uncertain operation intact", () => {
+  const { cwd } = fixture();
+  const runtime = createContinuityOperationRuntime(cwd);
+  for (let index = 0; index < 32; index++) {
+    expect(runtime.begin({ runtime: "pi", tool: "bash", inputDigest: operationInputDigest({ command: `unknown-${index}` }),
+      nativeCallRef: { sessionRef: sessionReferenceFor("pi", "fixture"), toolCallId: `unknown-${index}` }, effectScope: "external-or-unknown" }).ok).toBe(true);
+  }
+  const next = { runtime: "pi" as const, tool: "bash", inputDigest: operationInputDigest({ command: "next" }),
+    nativeCallRef: { sessionRef: sessionReferenceFor("pi", "fixture"), toolCallId: "next" }, effectScope: "external-or-unknown" as const };
+  expect(runtime.begin(next)).toMatchObject({ ok: false, reason: expect.stringContaining("active-limit") });
+  expect(runtime.grantActiveSlot()).toMatchObject({ ok: true, journal: { extraActiveSlots: 1 } });
+  expect(createContinuityOperationRuntime(cwd).begin(next).ok).toBe(true);
+  const journal = readContinuityOperations(cwd); if (journal.status !== "valid") throw new Error("journal unavailable");
+  expect(journal.journal.operations.filter((op) => op.status !== "settled")).toHaveLength(33);
+  expect(journal.journal.extraActiveSlots).toBe(1);
+  expect(runtime.grantActiveSlot()).toMatchObject({ ok: true, journal: { extraActiveSlots: 2 } });
 });
 
 test("the writer rechecks inspection evidence under its publication lock", () => {
