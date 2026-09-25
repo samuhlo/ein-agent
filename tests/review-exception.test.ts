@@ -21,11 +21,11 @@ function fixture() {
 	const forecast = reviewForecast(root, { mode: "committed", base });
 	if (!forecast.ok) throw new Error(forecast.reason);
 	const session = join(root, "session.jsonl");
-	const rows = (answer = "Una PR, excepción (Recommended)", cancelled = false) => [
+	const rows = (answer = "Una PR, excepción (Recommended)", cancelled = false, question = "¿Una PR o varias PR?") => [
 		{ type: "message", id: "forecast", message: { role: "toolResult", toolName: "ein_review_forecast", details: { ...forecast, ...evaluateReviewForecast(forecast, DEFAULT_REVIEW_BUDGET) } } },
-		{ type: "message", id: "choice", message: { role: "toolResult", toolName: "ask_user_question", details: { cancelled, answers: [{ questionIndex: 0, question: "¿Una PR o varias PR?", kind: "option", answer }] } } },
+		{ type: "message", id: "choice", message: { role: "toolResult", toolName: "ask_user_question", details: { cancelled, answers: [{ questionIndex: 0, question, kind: "option", answer }] } } },
 	];
-	const writeSession = (answer?: string, cancelled?: boolean) => writeFileSync(session, rows(answer, cancelled).map(row => JSON.stringify(row)).join("\n") + "\n");
+	const writeSession = (answer?: string, cancelled?: boolean, question?: string) => writeFileSync(session, rows(answer, cancelled, question).map(row => JSON.stringify(row)).join("\n") + "\n");
 	writeSession();
 	return { root, git, base, forecast, session, writeSession };
 }
@@ -75,4 +75,50 @@ test("the parent tool binds the saved answer without asking again", async () => 
 	});
 	expect(result.details).toMatchObject({ ok: true, headOid: box.forecast.headOid });
 	expect(checkCurrentPublication(box.root, box.base).ok).toBe(true);
+});
+
+test("the real single-PR selector wording is an approval for the exact forecast", () => {
+	const box = fixture();
+	box.writeSession("Sí, PR única (Recommended)", false, "¿Confirmas una sola PR excepcional para este commit?");
+	expect(recordReviewException(box.root, box.base, box.session).ok).toBe(true);
+});
+
+test("an explicit later user message can approve the same measured commit", () => {
+	const box = fixture();
+	const forecast = { type: "message", id: "forecast", message: { role: "toolResult", toolName: "ein_review_forecast", details: { ...box.forecast, ...evaluateReviewForecast(box.forecast, DEFAULT_REVIEW_BUDGET) } } };
+	const approval = { type: "message", id: "human", message: { role: "user", content: [{ type: "text", text: `Autorizo una PR única excepcional para el commit ${box.forecast.headOid!.slice(0, 7)} frente a dev` }] } };
+	writeFileSync(box.session, `${JSON.stringify(forecast)}\n${JSON.stringify(approval)}\n`);
+	expect(recordReviewException(box.root, box.base, box.session).ok).toBe(true);
+});
+
+test("the parent records the receipt in a sibling delivery worktree", async () => {
+	const box = fixture();
+	const worktree = `${box.root}-delivery`;
+	roots.push(worktree);
+	box.git("worktree", "add", "-q", "-b", "delivery", worktree, "HEAD");
+	const forecast = reviewForecast(worktree, { mode: "committed", base: box.base });
+	if (!forecast.ok) throw new Error(forecast.reason);
+	writeFileSync(box.session, [
+		{ type: "message", id: "forecast", message: { role: "toolResult", toolName: "ein_review_forecast", details: { ...forecast, ...evaluateReviewForecast(forecast, DEFAULT_REVIEW_BUDGET) } } },
+		{ type: "message", id: "choice", message: { role: "toolResult", toolName: "ask_user_question", details: { cancelled: false, answers: [{ questionIndex: 0, question: "¿Confirmas una sola PR excepcional?", kind: "option", answer: "Sí, PR única (Recommended)" }] } } },
+	].map(row => JSON.stringify(row)).join("\n") + "\n");
+	let tool: any;
+	registerReviewExceptionTool(((spec: any) => { tool = spec; }) as never);
+	const result = await tool.execute("approval", { base: box.base, worktree }, undefined, undefined, {
+		cwd: box.root, sessionManager: { getSessionFile: () => box.session }, hasUI: true,
+	});
+	expect(result.details.ok).toBe(true);
+	expect(checkCurrentPublication(worktree, box.base).ok).toBe(true);
+});
+
+test("a delivery target in another repository cannot inherit this session's approval", async () => {
+	const box = fixture();
+	const other = fixture();
+	let tool: any;
+	registerReviewExceptionTool(((spec: any) => { tool = spec; }) as never);
+	const result = await tool.execute("approval", { base: other.base, worktree: other.root }, undefined, undefined, {
+		cwd: box.root, sessionManager: { getSessionFile: () => box.session }, hasUI: true,
+	});
+	expect(result.details).toMatchObject({ ok: false });
+	expect(checkCurrentPublication(other.root, other.base).ok).toBe(false);
 });

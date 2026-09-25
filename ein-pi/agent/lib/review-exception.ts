@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { DEFAULT_REVIEW_BUDGET, evaluateReviewForecast, reviewForecast, type ReviewForecast } from "./review-forecast.ts";
 
 type ReviewException = {
@@ -26,10 +27,19 @@ export function reviewExceptionPath(cwd: string): string {
 	return join(realpathSync(cwd), ".pi", "ein", "review-exception.json");
 }
 
-function isSinglePrException(value: unknown): boolean {
-	if (typeof value !== "string") return false;
-	return /\buna\s+pr\b.*\bexcepci[oó]n\b/i.test(value)
-		|| /\bsingle\s+(?:pr|pull request)\b.*\bexception\b/i.test(value);
+function approvedSinglePrChoice(answer: unknown, question: unknown): boolean {
+	if (typeof answer !== "string" || typeof question !== "string" || !/\bPR\b|pull request/i.test(question)) return false;
+	const selected = answer.replace(/\s*\(Recommended\)\s*$/i, "").trim();
+	if (!/^(?:(?:s[ií]|yes|autorizo|apruebo|confirmo)\s*,?\s*)?(?:una\s+(?:sola\s+)?PR|PR\s+[uú]nica|single\s+(?:PR|pull request))\b/i.test(selected)) return false;
+	return /excepci[oó]n|excepcional|exception/i.test(`${selected} ${question}`);
+}
+
+function explicitMessageApproval(text: unknown, headOid: string): boolean {
+	return typeof text === "string"
+		&& /^(?:autorizo|apruebo|confirmo|i authorize|i approve)\b/i.test(text.trim())
+		&& /\b(?:una\s+(?:sola\s+)?PR|PR\s+[uú]nica|single\s+(?:PR|pull request))\b/i.test(text)
+		&& /excepci[oó]n|excepcional|exception/i.test(text)
+		&& text.toLowerCase().includes(headOid.slice(0, 7));
 }
 
 function sameForecast(details: any, forecast: ReviewForecast): boolean {
@@ -46,16 +56,30 @@ function approvalInSession(sessionFile: string, forecast: ReviewForecast): { for
 	for (const line of readFileSync(sessionFile, "utf8").split("\n")) {
 		if (!line) continue;
 		const entry = JSON.parse(line) as any;
-		if (entry?.type !== "message" || entry?.message?.role !== "toolResult" || typeof entry.id !== "string") continue;
+		if (entry?.type !== "message" || typeof entry.id !== "string") continue;
 		const message = entry.message;
+		if (message?.role === "user" && matchingForecast && Array.isArray(message.content)
+			&& message.content.some((part: any) => part?.type === "text" && explicitMessageApproval(part.text, forecast.headOid!))) {
+			approval = { forecastMessageId: matchingForecast, approvalMessageId: entry.id };
+		}
+		if (message?.role !== "toolResult") continue;
 		if (message.toolName === "ein_review_forecast") matchingForecast = sameForecast(message.details, forecast) ? entry.id : "";
 		if (message.toolName !== "ask_user_question" || !matchingForecast || message.details?.cancelled !== false) continue;
 		if (Array.isArray(message.details.answers) && message.details.answers.some((answer: any) =>
-			isSinglePrException(answer?.answer) && typeof answer.question === "string" && /\bPR\b|pull request/i.test(answer.question))) {
+			approvedSinglePrChoice(answer?.answer, answer?.question))) {
 			approval = { forecastMessageId: matchingForecast, approvalMessageId: entry.id };
 		}
 	}
 	return approval;
+}
+
+export function resolveReviewTarget(parentCwd: string, requested?: string): string {
+	const target = realpathSync(requested ?? parentCwd);
+	const git = (cwd: string, args: string[]) => execFileSync("git", ["rev-parse", ...args], { cwd, encoding: "utf8", timeout: 10_000 }).trim();
+	const top = realpathSync(git(target, ["--show-toplevel"]));
+	const common = (cwd: string) => realpathSync(resolve(cwd, git(cwd, ["--git-common-dir"])));
+	if (target !== top || common(parentCwd) !== common(target)) throw new Error("delivery worktree must be the root of this repository");
+	return target;
 }
 
 function matchingReceipt(value: unknown, cwd: string, base: string, forecast: ReviewForecast): value is ReviewException {
