@@ -7,6 +7,7 @@ import { observeContinuityGuard } from "../../lib/continuity-operation-adapter.t
 // =============================================================================
 
 import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { readAgreement } from "../../lib/intent-agreement.ts";
 import { PHASE_ARTIFACT, resolveChangesDir, type SddPhase } from "../../lib/sdd-routing-core.ts";
@@ -64,6 +65,14 @@ export function compactParentSkillCatalog(systemPrompt: string, skills: Skill[] 
 	const index = `\n\nAvailable skill names: ${names.map((name) => JSON.stringify(name)).join(", ")}.\nUse ein_skill_resolve for the task or ein_skill_registry for an exact name to obtain descriptions and paths, then read the selected SKILL.md. Skills remain installed and explicit /skill commands still work.\n`;
 	if (Buffer.byteLength(index) >= Buffer.byteLength(catalogue)) return systemPrompt;
 	return systemPrompt.slice(0, offset) + index + systemPrompt.slice(offset + catalogue.length);
+}
+
+export function browserVerificationSkillTask(cwd: string, change: string | undefined, agent: string | undefined): string {
+	if (!change || agent !== "sdd-verify") return "";
+	try {
+		const tasks = readFileSync(join(resolveChangesDir(cwd), change, "tasks.md"), "utf8");
+		return /^\s*- verify:[^\n]*(?:playwright|test:e2e)/im.test(tasks) ? "browser-verification" : "";
+	} catch { return ""; }
 }
 
 export function registerAgentPromptHook(pi: ExtensionAPI): void {
@@ -191,7 +200,7 @@ export function registerAgentPromptHook(pi: ExtensionAPI): void {
 			)}\n\n${internalAgentRoutingDirective()}`;
 		let skillsPrompt = "";
 		if ((isNamedAgent || isSddAgent) && !isScout) {
-			const block = resolveSkillInjection(ctx.cwd, [readAgentTask(event), handoff?.skillTask].filter(Boolean).join("\n"), 6, startNames[0]);
+			const block = resolveSkillInjection(ctx.cwd, [readAgentTask(event), handoff?.skillTask, browserVerificationSkillTask(ctx.cwd, change, startNames[0])].filter(Boolean).join("\n"), 6, startNames[0]);
 			if (block) skillsPrompt = `\n\n${block}`;
 		}
 		let artifactPrompt = "";

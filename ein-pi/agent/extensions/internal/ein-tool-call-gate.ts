@@ -46,7 +46,7 @@ import {
 import {
 	confirmDelegatedDelivery,
 } from "../../lib/guardrails.ts";
-import { compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
+import { bindUniqueApplyChange, compileApplyHandoff } from "../../lib/apply-packet-handoff.ts";
 import { guardChildCommand } from "./ein-command-guard-child.ts";
 import {
 	normalizeScoutLaunch,
@@ -178,6 +178,10 @@ export function registerToolCallGate(
 			// child transport.
 			const childCwd = (item: Record<string, unknown>) => resolve(ctx.cwd,
 				typeof item.cwd === "string" ? item.cwd : isRecord(event.input) && typeof event.input.cwd === "string" ? event.input.cwd : ".");
+			if (isRecord(event.input) && event.input.agent === "sdd-apply" && typeof event.input.task === "string") {
+				event.input.task = bindUniqueApplyChange(childCwd(event.input), event.input.task);
+				items = collectDelegationItems(event.input);
+			}
 			for (const item of items) {
 				if (item.agent !== "sdd-apply" && item.agent !== "sdd-scope") continue;
 				const child = { ...item };

@@ -6,6 +6,15 @@ import { resolveChangesDir } from "./sdd-router.ts";
 import { normalizeGroupTitle, applyGroupSkillNames, applyGroupText } from "./apply-packet-compile.ts";
 import { readExplicitSddChange } from "../extensions/internal/ein-pi-event-contracts.ts";
 
+// A single active change is deterministic. Bind it before the child starts so
+// the existing explicit-reference checks, TDD transport and phase context agree.
+export function bindUniqueApplyChange(cwd: string, task: string): string {
+	if (!/^apply_group:[\t ]*\S/m.test(task) || readExplicitSddChange({ task })) return task;
+	const observation = observeNextApplyPacket(cwd);
+	if (!("change" in observation) || !observation.change) return task;
+	return `${task}\nopenspec/changes/${observation.change}/tasks.md`;
+}
+
 // Opt-in via an exact group selector, so a legacy or deliberately different
 // assignment can never be silently replaced by the router's next group.
 export function compileApplyHandoff(cwd: string, task: string): { prompt: string; skillTask: string } | undefined {
@@ -19,7 +28,7 @@ export function compileApplyHandoff(cwd: string, task: string): { prompt: string
 		const issues = "issues" in observation ? observation.issues?.map((issue) => `${issue.field}: ${issue.detail}`).join("; ") ?? observation.status : observation.detail;
 		throw new Error(`Apply packet ${observation.status}: ${issues}. Have tasks correct this group; do not regenerate other phases or improvise an implementation.`);
 	}
-	if (normalizeGroupTitle(selectors[0]![1]) !== observation.packet.group) throw new Error("apply_group differs from the next pending group; reconcile progress before launching");
+	if (normalizeGroupTitle(selectors[0]![1]) !== observation.packet.group) throw new Error(`Requested apply_group differs from the next pending group (${observation.packet.group}). Resume that group or reconcile its completion; regenerate tasks only for a changed plan.`);
 	const tasks = readFileSync(join(resolveChangesDir(cwd), change, "tasks.md"), "utf8");
 	if (createHash("sha256").update(tasks).digest("hex") !== observation.packet.sources["tasks.md"]) throw new Error("Tasks changed while preparing the handoff; refresh the current group");
 	const skills = applyGroupSkillNames(tasks, observation.packet.group);
