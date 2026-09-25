@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -42,16 +42,37 @@ function explicitMessageApproval(text: unknown, headOid: string): boolean {
 		&& text.toLowerCase().includes(headOid.slice(0, 7));
 }
 
-function sameForecast(details: any, forecast: ReviewForecast): boolean {
+function exactForecast(details: any, forecast: ReviewForecast): boolean {
 	return details?.mode === "committed" && details?.decision === "over"
 		&& details.baseOid === forecast.baseOid && details.headOid === forecast.headOid
 		&& details.snapshotRef === forecast.snapshotRef
 		&& details.production === forecast.production && details.productionBytes === forecast.productionBytes;
 }
 
-function approvalInSession(sessionFile: string, forecast: ReviewForecast): { forecastMessageId: string; approvalMessageId: string } | null {
+function sameProductionAfterTestRepair(cwd: string, oldHead: string, current: ReviewForecast): boolean {
+	if (!OID.test(oldHead) || !current.baseOid || !current.headOid || oldHead === current.headOid) return false;
+	try {
+		execFileSync("git", ["merge-base", "--is-ancestor", oldHead, current.headOid], { cwd, timeout: 10_000 });
+		const changed = execFileSync("git", ["diff", "--name-only", "-z", oldHead, current.headOid, "--"], { cwd, encoding: "utf8", timeout: 10_000 }).split("\0").filter(Boolean);
+		if (!changed.length || changed.some((path) => !/(?:^|\/)(?:tests|__tests__|e2e)(?:\/|$)|\.(?:test|spec)\./u.test(path))) return false;
+		const old = reviewForecast(cwd, { mode: "committed", base: current.baseOid, head: oldHead });
+		if (!old.ok || old.production !== current.production || old.productionBytes !== current.productionBytes) return false;
+		const paths = [...new Set([...old.fileVolumes, ...current.fileVolumes].map((file) => file.path))].sort();
+		const digest = (head: string) => createHash("sha256").update(execFileSync("git", ["diff", "--no-ext-diff", "--binary", current.baseOid!, head, "--", ...paths], { cwd, timeout: 10_000, maxBuffer: 8 * 1024 * 1024 })).digest("hex");
+		return digest(oldHead) === digest(current.headOid);
+	} catch { return false; }
+}
+
+function matchingForecastHead(details: any, cwd: string, forecast: ReviewForecast): string | null {
+	if (exactForecast(details, forecast)) return forecast.headOid ?? null;
+	if (details?.mode !== "committed" || details?.decision !== "over" || details.baseOid !== forecast.baseOid || !OID.test(String(details.headOid))) return null;
+	return sameProductionAfterTestRepair(cwd, details.headOid, forecast) ? details.headOid : null;
+}
+
+function approvalInSession(sessionFile: string, cwd: string, forecast: ReviewForecast): { forecastMessageId: string; approvalMessageId: string } | null {
 	if (statSync(sessionFile).size > MAX_SESSION_BYTES) return null;
 	let matchingForecast = "";
+	let approvedHead = "";
 	let approval: { forecastMessageId: string; approvalMessageId: string } | null = null;
 	for (const line of readFileSync(sessionFile, "utf8").split("\n")) {
 		if (!line) continue;
@@ -59,11 +80,14 @@ function approvalInSession(sessionFile: string, forecast: ReviewForecast): { for
 		if (entry?.type !== "message" || typeof entry.id !== "string") continue;
 		const message = entry.message;
 		if (message?.role === "user" && matchingForecast && Array.isArray(message.content)
-			&& message.content.some((part: any) => part?.type === "text" && explicitMessageApproval(part.text, forecast.headOid!))) {
+			&& message.content.some((part: any) => part?.type === "text" && explicitMessageApproval(part.text, approvedHead))) {
 			approval = { forecastMessageId: matchingForecast, approvalMessageId: entry.id };
 		}
 		if (message?.role !== "toolResult") continue;
-		if (message.toolName === "ein_review_forecast") matchingForecast = sameForecast(message.details, forecast) ? entry.id : "";
+		if (message.toolName === "ein_review_forecast") {
+			approvedHead = matchingForecastHead(message.details, cwd, forecast) ?? "";
+			matchingForecast = approvedHead ? entry.id : "";
+		}
 		if (message.toolName !== "ask_user_question" || !matchingForecast || message.details?.cancelled !== false) continue;
 		if (Array.isArray(message.details.answers) && message.details.answers.some((answer: any) =>
 			approvedSinglePrChoice(answer?.answer, answer?.question))) {
@@ -101,7 +125,7 @@ export function recordReviewException(cwd: string, base: string, sessionFile: st
 		if (!forecast.ok || evaluateReviewForecast(forecast, DEFAULT_REVIEW_BUDGET).decision !== "over") return { ok: false, reason: "no current over-budget committed change" };
 		if (!forecast.baseOid || !forecast.headOid || !forecast.snapshotRef) return { ok: false, reason: "publication identity unavailable" };
 		const source = realpathSync(sessionFile);
-		const approval = approvalInSession(source, forecast);
+		const approval = approvalInSession(source, cwd, forecast);
 		if (!approval) return { ok: false, reason: "matching human single-PR decision unavailable" };
 		const receipt: ReviewException = { version: 1, cwd: realpathSync(cwd), base, baseOid: forecast.baseOid,
 			headOid: forecast.headOid, snapshotRef: forecast.snapshotRef, production: forecast.production,
@@ -120,7 +144,7 @@ export function readReviewException(cwd: string, base: string, forecast: ReviewF
 		const value: unknown = JSON.parse(readFileSync(reviewExceptionPath(cwd), "utf8"));
 		if (!matchingReceipt(value, cwd, base, forecast)) return { ok: false, reason: "review exception does not match this commit" };
 		const receipt = value as ReviewException;
-		const approval = approvalInSession(receipt.sessionFile, forecast);
+		const approval = approvalInSession(receipt.sessionFile, cwd, forecast);
 		if (!approval || approval.forecastMessageId !== receipt.forecastMessageId || approval.approvalMessageId !== receipt.approvalMessageId) {
 			return { ok: false, reason: "review exception approval is unavailable" };
 		}

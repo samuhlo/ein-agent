@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkCurrentPublication } from "../ein-pi/agent/lib/review-publication-check.ts";
@@ -52,6 +52,18 @@ test("changed content, base, or recorded decision invalidates the exception", ()
 	box.writeSession();
 	box.git("commit", "--allow-empty", "-qm", "moved head");
 	expect(checkCurrentPublication(box.root, box.base).ok).toBe(false);
+});
+
+test("one prior approval survives a descendant commit that only repairs tests", () => {
+	const box = fixture();
+	expect(recordReviewException(box.root, box.base, box.session).ok).toBe(true);
+	mkdirSync(join(box.root, "tests"));
+	writeFileSync(join(box.root, "tests/ci.test.ts"), "export const ci = true;\n");
+	box.git("add", "tests/ci.test.ts");
+	box.git("commit", "-qm", "fix test fixture");
+	expect(checkCurrentPublication(box.root, box.base).ok).toBe(false);
+	expect(recordReviewException(box.root, box.base, box.session).ok).toBe(true);
+	expect(checkCurrentPublication(box.root, box.base)).toMatchObject({ ok: true, exception: { production: 600 } });
 });
 
 test("an absent, cancelled, or unrelated answer cannot create an exception", () => {
