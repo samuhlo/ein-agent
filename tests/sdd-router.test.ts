@@ -746,6 +746,17 @@ describe("estado OpenSpec", () => {
 		expectProvenanceNext(resolveSddNext(DIR, "map-unresolved"), "unresolved");
 		expectProvenanceNext(resolveSddNext(DIR, "map-conflict"), "conflict");
 	});
+	test("a pending spec tells the parent to synchronize before verify", () => {
+		const c = deltaChange("verify-pending");
+		put(c, "scope.md", "scope: course\n");
+		put(c, "map.md", "scope_status: mapped\n");
+		put(c, "design.md", "# Design\n");
+		put(c, "tasks.md", "status: ready\nblocked_by: none\n## Group\n- [x] 1.1 done\n");
+		put(c, "apply-progress.md", "status: complete\n");
+		const status = resolveSddStatus(DIR, "verify-pending");
+		expect(status.nextRecommended).toBe("verify");
+		expect(status.blocked.join(" ")).toMatch(/sincroniza/i);
+	});
 
 	test("provenance gate stays out of missing-scope, existing-map, and later routes", () => {
 		const missingScope = change("map-without-scope");

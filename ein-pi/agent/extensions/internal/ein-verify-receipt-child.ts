@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { beginVerification, finishVerification } from "../../lib/sdd-verification-runtime.ts";
 import { isSafeChangeName, resolveChangesDir } from "../../lib/sdd-routing-core.ts";
+import { resolveSddStatus } from "../../lib/sdd-router.ts";
 
 type Params = { action: "begin" | "finish"; change: string; token?: string; content?: string };
 
@@ -27,6 +28,13 @@ export default function verificationReceipt(pi: ExtensionAPI): void {
 				return { content: [{ type: "text", text: JSON.stringify(result) }], details: result, isError: true };
 			}
 			const request = { cwd: ctx.cwd, changePath: join(resolveChangesDir(ctx.cwd), params.change) };
+			if (params.action === "begin") {
+				const specState = resolveSddStatus(ctx.cwd, params.change).specState;
+				if (specState === "pending" || specState === "conflict") {
+					const result = { ok: false, code: "spec-not-synchronized", reason: "Synchronize or resolve the OpenSpec delta before final verification checks." };
+					return { content: [{ type: "text", text: JSON.stringify(result) }], details: result, isError: true };
+				}
+			}
 			const result = params.action === "begin"
 				? beginVerification(request)
 				: typeof params.token === "string" && typeof params.content === "string"

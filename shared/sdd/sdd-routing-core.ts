@@ -642,6 +642,8 @@ function resolveSddStatus(
 		tasks.problems = tasks.problems.filter((problem) => problem !== "tasks.md ausente.");
 	}
 	if (tasks.status === "blocked" && tasks.blockedBy) blocked.push(`tasks.md bloqueado por: ${tasks.blockedBy}`);
+	if (nextRecommended === "verify" && specState === "pending") blocked.push("Sincroniza el delta OpenSpec antes de verificar; después ejecuta los checks una vez sobre el estado final.");
+	if (nextRecommended === "verify" && specState === "conflict") blocked.push("Resuelve el conflicto OpenSpec antes de verificar el estado final.");
 
 	const currentPhase = nextRecommended;
 	const summary: SddChangeSummary = {
