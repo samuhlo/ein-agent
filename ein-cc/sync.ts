@@ -123,6 +123,8 @@ const EXACT_TOOL_MAP: Record<string, string> = {
 };
 
 function translateTool(raw: string, source: string, agent: string): string {
+  // Pi owns the structured PR tool. Claude keeps its existing Bash/gh route.
+  if (raw === "ein_pr_create" && agent === "ein-git") return "Bash";
   const exact = EXACT_TOOL_MAP[raw];
   if (exact) return exact;
   if (raw.startsWith("linear_") && raw.length > "linear_".length) {
@@ -132,6 +134,21 @@ function translateTool(raw: string, source: string, agent: string): string {
     "PARITY_UNKNOWN_TOOL",
     `source ${source}, agent ${agent}, tool ${raw}`,
   );
+}
+
+function adaptClaudeGitPrBody(body: string): string {
+  const rules: ReadonlyArray<readonly [string, string]> = [
+    ["Create a PR with `ein_pr_create`, which owns the title badge, body structure, publication check and read-back.", "Create a PR with non-interactive `gh pr create` and a body file; preserve the title badge, numbered body, publication check and JSON read-back."],
+    ["Use `git`/`gh` for delivery reads and push, and `ein_pr_create` for PR creation.", "Use `git`/`gh` for delivery reads, push and PR creation."],
+    ["4. Call `ein_pr_create` with the exact base/head, a short title, an optional concrete badge (`FEAT`, `FIX`, `F5`...), one intent sentence, changed behaviors, the actual mechanism, checks already run, and risks. Give an issue only when it already exists and is relevant; never create one to satisfy a template. The tool formats and reads back the published PR.", "4. Compose a `[[TAG]]` title and a body file with intent, `// 001`–`// 004` sections, real mechanism, observed checks and risks. A GitHub issue is optional. Run `GH_PROMPT_DISABLED=1 GH_PAGER=cat gh pr create --base <base> --head <branch> --title <title> --body-file <path>`, then read back title, body, refs and state with `gh pr view --json`. Do not retry a possible creation without inspecting GitHub."],
+    ["Supply real mechanism and exact observed checks to `ein_pr_create`; it builds the `[[TAG]]` title and the `// 001`–`// 004` body in the configured artifact language. It adds an approved size exception from the publication receipt. A GitHub issue is optional. If the tool reports that a PR may already exist, inspect that URL; never create a duplicate.", "Supply a real mechanism and exact observed checks in the configured artifact language. Include any approved size exception from the publication receipt. A GitHub issue is optional; never create one solely for a PR. Use a body file and read back the published PR. If creation is uncertain, inspect before retrying."],
+  ];
+  let adapted = body;
+  for (const [before, after] of rules) {
+    if (!adapted.includes(before)) throw parity("PARITY_GIT_PR_ADAPTER_DRIFT", `agents/ein-git.md missing expected Pi PR instruction: ${before.slice(0, 48)}`);
+    adapted = adapted.replace(before, after);
+  }
+  return adapted;
 }
 
 function translateTools(piTools: string, source: string, agent: string): string {
@@ -415,7 +432,8 @@ function translateAgent(src: string, source: string, routing: Record<string, Cla
     if (route.effort) lines.push(`effort: ${route.effort}`);
   }
   lines.push("---");
-  const body = parsed.body.replace("Ein attaches its key to full artifact writes; never copy hashes yourself.", "If an optional confirmed intent.md exists, read it as context. No intent_key is required to execute the phase.");
+  const canonicalBody = name === "ein-git" ? adaptClaudeGitPrBody(parsed.body) : parsed.body;
+  const body = canonicalBody.replace("Ein attaches its key to full artifact writes; never copy hashes yourself.", "If an optional confirmed intent.md exists, read it as context. No intent_key is required to execute the phase.");
   const verifyEvidence = source === "agents/sdd-verify.md"
     ? '\nFor each required command, write `required_check: {"command":"exact command","exitCode":0}` outside code fences, using its actual exit code (null if unavailable). Any failed required check, including an expected regression, means status: fail. The close gate rejects nonzero or malformed results even if prose says pass.\n'
     : "";

@@ -15,7 +15,7 @@ Invoke these with the `subagent` tool — never do their work from the parent. *
 | Agent | Tools | When |
 | ----- | ----- | ---- |
 | `ein-linear` | linear_* (issues, comments, projects, milestones) | Linear ops (integration on, or explicit user ask). NEVER `curl` the Linear API. |
-| `ein-git` | read, write, edit, bash | Git delivery: branches, commits, push, PRs, reviews. NEVER run `git`/`gh` delivery directly. |
+| `ein-git` | read, write, edit, bash, ein_pr_create | Git delivery: branches, commits, push, PRs, reviews. NEVER run `git`/`gh` delivery directly. |
 | `ein-scout` | read, grep, find | Read-only investigation that would otherwise pile into YOUR context: multi-file greps, reading large files/artifacts to understand code BEFORE a change is scoped, "where/how is X used" sweeps. Returns bounded cited evidence (fresh context) so the heavy reads never land in the parent. NEVER designs, decides, implements, or routes. |
 | `sdd-scope` | read, grep, find, write, bash, ein_openspec_delta_write, ein_sdd_phase_complete | SDD scope phase. |
 | `sdd-map` | read, grep, find, write, bash, ein_sdd_phase_complete | SDD map. |

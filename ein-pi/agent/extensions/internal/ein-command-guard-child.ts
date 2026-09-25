@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import { confirmCommand } from "../../lib/guardrails.ts";
-import { evaluateStaging } from "../../lib/git-staging.ts";
+import { binarySubcommandArgs, evaluateStaging } from "../../lib/git-staging.ts";
 
 // Ambient and explicit child extensions can coexist. Pi shares the event across
 // handlers; evaluate an unchanged invocation once so a delivery grant is not
@@ -13,6 +13,9 @@ export function guardChildCommand(event: ToolCallEvent, ctx: ExtensionContext): 
 	const previous = checked.get(event);
 	if (previous?.command === command && previous.cwd === ctx.cwd) return previous.result;
 	const result = (async () => {
+		if (binarySubcommandArgs(command, "gh", "pr")?.[0] === "create") {
+			return { block: true, reason: "Use ein_pr_create for the authorized PR; it preserves the title badge, body style and publication check." };
+		}
 		const guard = await confirmCommand(command, ctx);
 		if (guard) return guard;
 		const staging = evaluateStaging(ctx.cwd, command);
