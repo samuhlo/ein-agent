@@ -96,7 +96,7 @@ function matchingReceipt(value: unknown, cwd: string, base: string, forecast: Re
 
 export function recordReviewException(cwd: string, base: string, sessionFile: string): Result {
 	try {
-		if (!base || !/^[\w./-]+$/.test(base) || base.startsWith("-")) return { ok: false, reason: "invalid PR base" };
+		if (!base || !/^[\w./-]+$/.test(base) || base.startsWith("-") || !OID.test(base) && !/^origin\/[\w./-]+$/.test(base)) return { ok: false, reason: "use the exact origin/<PR-base> ref" };
 		const forecast = reviewForecast(cwd, { mode: "committed", base });
 		if (!forecast.ok || evaluateReviewForecast(forecast, DEFAULT_REVIEW_BUDGET).decision !== "over") return { ok: false, reason: "no current over-budget committed change" };
 		if (!forecast.baseOid || !forecast.headOid || !forecast.snapshotRef) return { ok: false, reason: "publication identity unavailable" };

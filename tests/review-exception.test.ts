@@ -83,6 +83,12 @@ test("the real single-PR selector wording is an approval for the exact forecast"
 	expect(recordReviewException(box.root, box.base, box.session).ok).toBe(true);
 });
 
+test("the exception cannot silently measure a stale local dev branch", () => {
+	const box = fixture();
+	box.git("branch", "dev", box.base);
+	expect(recordReviewException(box.root, "dev", box.session)).toMatchObject({ ok: false, reason: "use the exact origin/<PR-base> ref" });
+});
+
 test("an explicit later user message can approve the same measured commit", () => {
 	const box = fixture();
 	const forecast = { type: "message", id: "forecast", message: { role: "toolResult", toolName: "ein_review_forecast", details: { ...box.forecast, ...evaluateReviewForecast(box.forecast, DEFAULT_REVIEW_BUDGET) } } };
