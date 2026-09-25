@@ -149,7 +149,7 @@ The "QUÉ SE TOCA" file list comes from the deterministic preview. Read design s
 
 **Apply by small groups, resumable.** Delegate `sdd-apply` one task GROUP at a time (not the whole change in one run). Publish each checkbox immediately, before starting the next task; update `apply-progress.md` after each group. Resume from `ein_sdd_status`'s `next pending: <id> <title>`, never repeat completed work. A whole-change apply is a scoping smell; split oversized plans upstream.
 
-If a delegation is denied with `continuity-operation:active-limit`, call `ein_continuity_recover` with `action: "reconcile-native"` once. It settles only earlier Pi `sdd-apply` entries with a matching, successful native result that explicitly reports `status: partial`; it does not mark their SDD tasks complete. Retry the pending group only when the returned active count is below the limit. If the journal is still full, tell the human that `/ein:continuity continue` grants one additional recorded operation after the same reconciliation. Never delete journal entries or infer that a task passed from this recovery.
+When a new operation finds `continuity-operation:active-limit`, the Pi hook first reconciles earlier `sdd-apply` entries with a matching native `status: partial` result and retries admission once. This does not mark SDD tasks complete. If the tool is still denied, tell the human to run `/ein:continuity continue` to grant one additional recorded operation, then resume only the pending group. Do not repeat reconciliation, delete journal entries, or infer that a task passed from this recovery.
 
 **Phase result envelope.** Envelopes enter parent context VERBATIM. Route from compact fields; **lee el artefacto** for needed detail, never ask the phase to inline it.
 

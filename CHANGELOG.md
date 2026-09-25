@@ -4,6 +4,13 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.15.4] - 2026-09-25
+
+### Fixed
+
+- Una petición normal de continuar recupera automáticamente los apply parciales comprobables cuando el registro está lleno y reintenta la operación una vez.
+- `/ein:continuity` explica el siguiente paso sin mostrar un error de uso; la orden `continue` responde en lenguaje claro. Si hace falta permiso humano para una plaza adicional, Ein muestra el comando exacto una sola vez.
+
 ## [0.99.0-alpha.15.3] - 2026-09-25
 
 ### Fixed
