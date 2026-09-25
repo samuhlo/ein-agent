@@ -61,6 +61,8 @@ type Ports = Readonly<{
 }>;
 export type ContinuityHandoffLifecycle = Readonly<{
 	listOperations: ReturnType<typeof createContinuityOperationRuntime>["list"];
+	reconcileNativeSubagents: ReturnType<typeof createContinuityOperationRuntime>["reconcileNativeSubagents"];
+	grantActiveSlot: ReturnType<typeof createContinuityOperationRuntime>["grantActiveSlot"];
 	beginOperation: ReturnType<typeof createContinuityOperationRuntime>["begin"];
 	finishOperation: ReturnType<typeof createContinuityOperationRuntime>["finish"];
 	inspectOperation: ReturnType<typeof createContinuityOperationRuntime>["inspect"];
@@ -224,6 +226,8 @@ export function createContinuityHandoffLifecycle(cwd: string, ports: Ports): Con
 
 	return Object.freeze({
 		listOperations: operations.list,
+		reconcileNativeSubagents: operations.reconcileNativeSubagents,
+		grantActiveSlot: operations.grantActiveSlot,
 		beginOperation: operations.begin,
 		finishOperation: operations.finish,
 		inspectOperation: operations.inspect,

@@ -14,6 +14,8 @@ function lifecycle(overrides: Partial<ContinuityHandoffLifecycle> = {}) {
 	const calls: string[] = [];
 	const value: ContinuityHandoffLifecycle = {
 		listOperations: () => ({ ok: true, observed: false, operations: [] }),
+		reconcileNativeSubagents: () => ({ ok: true, value: { reconciled: 0, active: 0, limit: 32 } }),
+		grantActiveSlot: () => ({ ok: false, reason: "grant-not-needed", outcome: "not-published" }),
 		beginOperation: () => ({ ok: true, journal: { schemaVersion: 1, revision: "fixture", operations: [] } }),
 		finishOperation: (_input, outcome) => { calls.push(`mutation:${outcome === "succeeded"}`); return { ok: true, journal: { schemaVersion: 1, revision: "fixture", operations: [] } }; },
 		inspectOperation: () => ({ ok: false, reason: "fixture" }), resolveOperation: () => ({ ok: false, reason: "fixture" }), recordAdmissionDenied: () => ({ ok: false, reason: "fixture", outcome: "not-published" }),
@@ -33,7 +35,7 @@ function harness(instances = [lifecycle()]) {
 	createEinContinuityExtension({ createLifecycle: () => instances[Math.min(created++, instances.length - 1)]!.value })(api);
 	const context = (patch: Record<string, unknown> = {}) => ({ cwd: "/project", hasUI: true, sessionManager: { getBranch: () => entries }, ui: { notify: (message: string) => notifications.push(message) }, getContextUsage: () => ({ tokens: 90, contextWindow: 100, percent: 90 }), waitForIdle: async () => { instances[0]!.calls.push("idle"); }, ...patch }) as unknown as ExtensionCommandContext;
 	const emit = async (name: string, event: Record<string, unknown>, ctx = context()) => { let result: unknown; for (const hook of hooks.get(name) ?? []) result = await hook(event, ctx); return result; };
-	return { hooks, commands, tools, notifications, context, emit, command: commands.get("ein:handoff")![0]!, instances };
+	return { hooks, commands, tools, notifications, context, emit, command: commands.get("ein:handoff")![0]!, continuityCommand: commands.get("ein:continuity")![0]!, instances };
 }
 
 describe("ein continuity extension", () => {
@@ -64,7 +66,29 @@ describe("ein continuity extension", () => {
 	});
 
 	test("registers one command and each lifecycle hook exactly once", () => {
-		const app = harness(); expect(app.commands.get("ein:handoff")).toHaveLength(1); expect(app.tools.has("ein_continuity_objective")).toBeTrue(); expect(app.tools.has("ein_continuity_recover")).toBeTrue(); expect([...app.hooks.keys()].sort()).toEqual(["agent_settled", "input", "session_before_compact", "session_shutdown", "session_start", "tool_call", "tool_result"]); expect([...app.hooks.values()].every((items) => items.length === 1)).toBeTrue();
+		const app = harness(); expect(app.commands.get("ein:handoff")).toHaveLength(1); expect(app.commands.get("ein:continuity")).toHaveLength(1); expect(app.tools.has("ein_continuity_objective")).toBeTrue(); expect(app.tools.has("ein_continuity_recover")).toBeTrue(); expect([...app.hooks.keys()].sort()).toEqual(["agent_settled", "input", "session_before_compact", "session_shutdown", "session_start", "tool_call", "tool_result"]); expect([...app.hooks.values()].every((items) => items.length === 1)).toBeTrue();
+	});
+
+	test("an explicit continue command reconciles first and grants only when still full", async () => {
+		let grants = 0;
+		const instance = lifecycle({ reconcileNativeSubagents: () => ({ ok: true, value: { reconciled: 30, active: 2, limit: 32 } }), grantActiveSlot: () => { grants++; throw new Error("not needed"); } });
+		const app = harness([instance]); await app.emit("session_start", {});
+		await app.continuityCommand("continue", app.context());
+		expect(grants).toBe(0); expect(app.notifications.at(-1)).toBe("continuity-continue=ready;reconciled=30;active=2;limit=32");
+		const full = lifecycle({ reconcileNativeSubagents: () => ({ ok: true, value: { reconciled: 0, active: 32, limit: 32 } }), grantActiveSlot: () => ({ ok: true, journal: { schemaVersion: 1, revision: "fixture", operations: [], extraActiveSlots: 1 } }) });
+		const second = harness([full]); await second.emit("session_start", {}); await second.continuityCommand("continue", second.context());
+		expect(second.notifications.at(-1)).toBe("continuity-continue=ready;reconciled=0;active=32;limit=33;human-grant=1");
+	});
+
+	test("the model can reconcile native results but cannot grant an extra slot through the tool", async () => {
+		let grants = 0;
+		const instance = lifecycle({ reconcileNativeSubagents: () => ({ ok: true, value: { reconciled: 30, active: 2, limit: 32 } }), grantActiveSlot: () => { grants++; throw new Error("not exposed"); } });
+		const app = harness([instance]); await app.emit("session_start", {});
+		const tool = app.tools.get("ein_continuity_recover");
+		expect(tool.parameters.properties.action.enum).toContain("reconcile-native");
+		expect((await tool.execute("call", { action: "reconcile-native" })).details).toEqual({ ok: true, value: { reconciled: 30, active: 2, limit: 32 } });
+		expect((await tool.execute("call", { action: "grant" })).isError).toBeTrue();
+		expect(grants).toBe(0);
 	});
 
 	test("sets an objective from the last real human request without accepting a model-supplied request id", async () => {

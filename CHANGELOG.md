@@ -4,6 +4,13 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.15.3] - 2026-09-25
+
+### Fixed
+
+- Los resultados parciales de `sdd-apply` ya no llenan el registro de operaciones inciertas: el arnés distingue la entrega del resultado nativo del estado de la tarea.
+- `/ein:continuity continue` reconcilia entradas antiguas con resultado nativo comprobado y permite ampliar una plaza del registro por orden humana cuando sigue lleno. Las operaciones realmente inciertas permanecen registradas.
+
 ## [0.99.0-alpha.15.2] - 2026-09-24
 
 ### Fixed

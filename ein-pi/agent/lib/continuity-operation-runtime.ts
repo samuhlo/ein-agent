@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { operationId, operationInputDigest, validContinuityOperation, type NativeCallRef, type ContinuityOperation, type OperationRecovery } from "./continuity-operations.ts";
+import { OPERATION_LIMITS, operationId, operationInputDigest, validContinuityOperation, type NativeCallRef, type ContinuityOperation, type OperationRecovery } from "./continuity-operations.ts";
 import { ensureOperationIsolation, readContinuityOperations, transactContinuityOperations, type OperationWrite } from "./continuity-operation-store.ts";
 import { continuityEvidenceFile, createContinuityRecoveryEvidence, requiresExternalContinuityProof, type ContinuityRecoveryEvidencePort } from "./continuity-recovery-evidence.ts";
 import { projectProjectState } from "./project-state.ts";
@@ -33,6 +33,40 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
     read,
     list() { const result = read(); return result.status === "failure" ? { ok: false as const, reason: result.reason } : { ok: true as const, observed: result.status === "valid", operations: result.status === "valid" ? result.journal.operations.filter((op) => op.status !== "settled").map(({ id, tool, status }) => ({ id, tool, status })) : [] }; },
     uncertain(): boolean { const result = read(); return result.status === "failure" || result.status === "valid" && result.journal.operations.some((op) => op.status !== "settled"); },
+    reconcileNativeSubagents(): Result<{ reconciled: number; active: number; limit: number }> {
+      const before = read(); if (before.status !== "valid") return { ok: false, reason: before.status === "failure" ? before.reason : "journal-unavailable" };
+      const observed = (op: ContinuityOperation) => {
+        if (op.runtime !== "pi" || op.tool !== "subagent" || op.status !== "uncertain" || op.reason !== "native-unavailable") return false;
+        const call = evidence.readCall(op.nativeCallRef);
+        const agent = call?.input && typeof call.input === "object" ? (call.input as { agent?: unknown }).agent : undefined;
+        const content = call?.result && typeof call.result === "object" ? (call.result as { content?: unknown }).content : undefined;
+        const statusLines = Array.isArray(content) ? content.flatMap((part) => part?.type === "text" && typeof part.text === "string"
+          ? part.text.split(/\r?\n/).filter((line: string) => /^\s*status\s*:/.test(line)) : []) : [];
+        return call?.tool === op.tool && call.inputDigest === op.inputDigest && call.terminal === "succeeded" && agent === "sdd-apply"
+          && statusLines.length === 1 && /^\s*status\s*:\s*partial\s*$/.test(statusLines[0]!)
+          && call.nativeOrder?.result !== undefined && call.nativeOrder.result > call.nativeOrder.call;
+      };
+      const candidates = before.journal.operations.filter(observed);
+      const active = before.journal.operations.filter((op) => op.status !== "settled").length;
+      const limit = OPERATION_LIMITS.active + (before.journal.extraActiveSlots ?? 0);
+      if (!candidates.length) return { ok: true, value: { reconciled: 0, active, limit } };
+      const ids = new Set(candidates.map((op) => op.id));
+      const written = transactContinuityOperations(cwd, before.journal.revision, (items) => items.map((op) => ids.has(op.id)
+        ? { ...op, status: "settled" as const, outcome: "observed" as const, reason: "native-result-observed" } : op), {
+        beforePublish() {
+          if (candidates.some((op) => !observed(op))) throw new Error("native-result-stale");
+        },
+      });
+      return written.ok ? { ok: true, value: { reconciled: candidates.length, active: active - candidates.length, limit } }
+        : { ok: false, reason: written.reason };
+    },
+    grantActiveSlot(): OperationWrite {
+      const before = read(); if (before.status !== "valid") return { ok: false, reason: before.status === "failure" ? before.reason : "journal-unavailable", outcome: "not-published" };
+      const active = before.journal.operations.filter((op) => op.status !== "settled").length;
+      const limit = OPERATION_LIMITS.active + (before.journal.extraActiveSlots ?? 0);
+      if (active < limit) return { ok: false, reason: "grant-not-needed", outcome: "not-published" };
+      return transactContinuityOperations(cwd, before.journal.revision, (items) => items, { grantActiveSlot: true });
+    },
     begin(input: OperationStart): OperationWrite {
       const isolated = ensureOperationIsolation(cwd); if (!isolated.ok) return { ...isolated, outcome: "not-published" };
       const next = candidate(input);
@@ -49,15 +83,15 @@ export function createContinuityOperationRuntime(cwd: string, ports: Ports = {})
       if (result.ok && result.journal.operations.some((op) => op.id === next.id && op.status === "running")) admissions.set(next.id, next.admissionRef!);
       return result;
     },
-    finish(input: OperationStart, outcome: "succeeded" | "failed" | "unavailable"): OperationWrite {
+    finish(input: OperationStart, outcome: "succeeded" | "observed" | "failed" | "unavailable"): OperationWrite {
       const next = candidate(input);
       const result = update((items) => {
         const old = items.find((op) => op.id === next.id);
         if (!old) return [...items, { ...next, beforeStateRef: null, status: "uncertain", reason: "missing-start", afterStateRef: stateRef() }];
         compatible(old, next); if (old.status === "settled") return items;
-        if (old.status === "uncertain") { if (outcome === "succeeded") throw new Error("operation-terminal-conflict"); return items; }
-        const settled: ContinuityOperation = outcome === "succeeded"
-          ? { ...old, status: "settled", outcome: "succeeded", afterStateRef: stateRef() }
+        if (old.status === "uncertain") { if (outcome === "succeeded" || outcome === "observed") throw new Error("operation-terminal-conflict"); return items; }
+        const settled: ContinuityOperation = outcome === "succeeded" || outcome === "observed"
+          ? { ...old, status: "settled", outcome, afterStateRef: stateRef() }
           : { ...old, status: "uncertain", reason: `native-${outcome}`, afterStateRef: stateRef() };
         return items.map((op) => op.id === old.id ? settled : op);
       });
