@@ -22,6 +22,7 @@ import { registerSddChangeSettings } from "./internal/ein-sdd-change-settings.ts
 import { registerSddReadSurface } from "./internal/ein-sdd-read-surface.ts";
 import { registerReviewExceptionTool } from "./internal/ein-review-exception-tool.ts";
 import { registerStatusCommands } from "./internal/ein-status-commands.ts";
+import { registerParentOutputBudget } from "../lib/parent-output-budget.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
 import type { ScoutTracking } from "../lib/scout-contract.ts";
 
@@ -34,6 +35,7 @@ const scoutTracking: ScoutTracking = new Map();
 export default function einAi(pi: ExtensionAPI): void {
 	pi = withEinCommandSurfaces(pi, "ein-ai");
 	const registerEinTool = createEinToolRegistrar(pi);
+	registerParentOutputBudget(pi);
 	if (process.env.PI_SUBAGENT_CHILD !== "1") registerIntentDiscovery(pi, registerEinTool);
 	const delegationResults = registerDelegationResultHook(pi, scoutTracking);
 	const toolCallGate = registerToolCallGate(pi, {

@@ -16,7 +16,7 @@ import {
 	summarizeApplyPacketObservations,
 } from "../ein-pi/agent/lib/apply-packet-observation-record";
 import { registerToolCallGate } from "../ein-pi/agent/extensions/internal/ein-tool-call-gate";
-import { compileApplyHandoff } from "../ein-pi/agent/lib/apply-packet-handoff.ts";
+import { bindUniqueApplyChange, compileApplyHandoff } from "../ein-pi/agent/lib/apply-packet-handoff.ts";
 import { registerAgentPromptHook } from "../ein-pi/agent/extensions/internal/ein-agent-prompt-hook.ts";
 
 const roots: string[] = [];
@@ -100,6 +100,31 @@ async function invokeApplyHook(root: string, options: { hasUI?: boolean; appendF
 }
 
 describe("observación viva de apply-packet/v2", () => {
+	test("binds a unique active change without asking the parent to restate its path", () => {
+		const root = project();
+		const task = bindUniqueApplyChange(root, "apply_group: // 001. Grupo vivo");
+		expect(task).toContain("openspec/changes/demo/tasks.md");
+		expect(compileApplyHandoff(root, task)?.prompt).toContain("Validated group metadata");
+		expect(bindUniqueApplyChange(root, task)).toBe(task);
+		expect(() => compileApplyHandoff(root, "openspec/changes/demo/tasks.md\napply_group: // 002. Otro grupo"))
+			.toThrow("Resume that group or reconcile its completion");
+	});
+	test("the real delegation gate sends the inferred path to the apply child", async () => {
+		const root = project();
+		const result = await invokeApplyHook(root, { task: "apply_group: // 001. Grupo vivo" });
+		expect(result.result).toBeUndefined();
+		expect(result.input.task).toContain("openspec/changes/demo/tasks.md");
+	});
+	test("does not guess between two active changes", () => {
+		const root = project();
+		const other = join(root, "openspec", "changes", "other");
+		mkdirSync(other, { recursive: true });
+		writeFileSync(join(other, "design.md"), "# Design\n");
+		writeFileSync(join(other, "tasks.md"), tasks());
+		const task = "apply_group: // 001. Grupo vivo";
+		expect(bindUniqueApplyChange(root, task)).toBe(task);
+		expect(() => compileApplyHandoff(root, task)).toThrow("explicit openspec");
+	});
 	test("the selected group becomes the child's current checklist, not another group's plan", () => {
 		const root = project(tasks().replace("  - architecture:", "  - skills: `project-convention`\n  - steps: Capture the original before editing; preserve exact status values.\n  - architecture:"));
 		const task = "openspec/changes/demo/tasks.md\napply_group: // 001. Grupo vivo";
