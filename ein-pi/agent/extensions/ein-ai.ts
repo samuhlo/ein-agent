@@ -23,6 +23,7 @@ import { registerSddReadSurface } from "./internal/ein-sdd-read-surface.ts";
 import { registerReviewExceptionTool } from "./internal/ein-review-exception-tool.ts";
 import { registerStatusCommands } from "./internal/ein-status-commands.ts";
 import { registerParentOutputBudget } from "../lib/parent-output-budget.ts";
+import { registerContextReadGuard } from "../lib/context-read-guard.ts";
 import { createEinToolRegistrar } from "./internal/ein-tool-registration.ts";
 import type { ScoutTracking } from "../lib/scout-contract.ts";
 
@@ -42,6 +43,7 @@ export default function einAi(pi: ExtensionAPI): void {
 		scoutTracking,
 		rememberPhaseRun: delegationResults.rememberPhaseRun,
 	});
+	registerContextReadGuard(pi);
 	const sessionLifecycle = registerSessionLifecycle(pi, {
 		scoutTracking,
 		recordDeliveryIntent: toolCallGate.recordDeliveryIntent,

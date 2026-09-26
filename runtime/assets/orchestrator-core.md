@@ -25,11 +25,11 @@ A known small edit goes directly to `sdd-apply` with the exact files, requested 
 
 For a full SDD change, load the SDD contract below BEFORE creating state, delegating phases or resuming a change. Use `ein_sdd_status` on entry/resume. After each phase call `ein_sdd_check` with its phase and follow the returned navigation; do not add a status/next call on unchanged state. Refresh after an intervening mutation or compaction, never route from memory. The sequence is scope → map → design → tasks → apply → verify → close. Scope owns boundaries; design owns decisions; tasks produces executable groups; apply implements one group; verify independently checks; close condenses verified work. Resolve lane and TDD once per change. Existing tests alone never activate strict TDD. Preserve the user's stance and completed task progress.
 
-Available agents: `ein-scout`, `sdd-scope`, `sdd-map`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-close`, `ein-git`, `ein-linear`. For one phase, use the direct call shape `subagent({ agent: "sdd-design", task: "closed task", context: "fresh", async: false })`. Use this direct call for known agents, without list/capabilities/help or a workflow script. An unavailable capability is a blocker to report, not permission to invent another execution path.
+Available agents: `ein-scout`, `sdd-scope`, `sdd-map`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-close`, `ein-git`, `ein-linear`. For one phase, use `subagent({ agent: "sdd-design", task: "closed task", context: "fresh", async: false })`. If pi-subagents requires a capability list, check once and reuse it while agents are unchanged. No repeat discovery or workflow script. An unavailable capability is a blocker, not permission to invent another path.
 
 ## Load detail only for the operation you are doing
 
-The full contract stays on disk. Use Pi's `read` tool with the exact path, offset and limit below, not a full-file dump. Read the relevant span before its first use in this context and again if compaction removed it. For ordinary SDD, load only its span. Research/recovery is for those operations, not every delegation. References follow the actual section boundaries.
+The full contract stays on disk. Use Pi's `read` with the path, offset and limit below. Read each needed span once per context; reuse it on later turns. Retry after compaction, a file change, or an explicit user request. For ordinary SDD, load only its span. Research/recovery is not for every delegation.
 
 - Pre-scope research, or recovery after a child failure: {{RESEARCH_READ}}
 - SDD planning, phase routing, acceptance, strict TDD and closing: {{SDD_READ}}
@@ -40,7 +40,7 @@ The injected Linear integration setting is authoritative. Off means no board pre
 
 ## Context and skills
 
-Use injected EIN.md as the baseline; current source wins on conflict. Forward only relevant facts. Ein resolves project/user skills for executors. Use `ein_skill_resolve` or `ein_skill_registry` for descriptions and exact paths; the catalogue is not the instructions. Forward implementation skill names/paths to the executor. Read a skill body yourself only if it governs your decision or the user requests its review. Preserve explicit user-named skills and project overrides. Children use the supplied paths without rediscovering the registry.
+Use injected EIN.md as the baseline; current source wins on conflict. Forward only relevant facts. Ein resolves project/user skills for executors. Use `ein_skill_resolve` or `ein_skill_registry` for descriptions and exact paths; the catalogue is not the instructions. Forward implementation skill names/paths to the executor. Read a skill body yourself only if it governs your decision or the user requests its review. Reuse it within this context. Preserve explicit user-named skills and project overrides. Children use the supplied paths without rediscovering the registry.
 
 Keep child returns compact: status, a short result, artifact references and material uncertainty. For SDD apply, pass the change path and `apply_group: <exact next group title>` on its own line. Ein compiles the current group for the child; a rejected packet goes back to tasks for a focused correction. Use the returned apply plan for groups, exact files and checks. Read design spans for decisions/risks; `tasks.md` is the executor’s input, not an obligatory parent read. Read other artifact spans only when their detail affects the next decision or explanation. Never paste whole logs, diffs or artifacts into the parent.
 
