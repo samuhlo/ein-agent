@@ -4,6 +4,20 @@ Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 
+## [0.99.0-alpha.18] - 2026-09-26
+
+### Added
+
+- Antes de abrir un cambio SDD nuevo, Ein registra la petición si está cerrada
+  o entrevista las decisiones de producto pendientes. El preflight de Pi y
+  Claude exige un acuerdo de intent confirmado; los cambios históricos ya
+  acotados pueden continuar.
+
+### Fixed
+
+- El orquestador evita releer contexto que ya recibió y conserva esa evidencia
+  al preparar el siguiente paso.
+
 ## [0.99.0-alpha.17] - 2026-09-25
 
 ### Added
