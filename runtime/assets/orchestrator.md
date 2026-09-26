@@ -10,7 +10,7 @@ The injected **Linear integration** directive is authoritative. **Off** (default
 
 ## Subagent Inventory
 
-Invoke these with the `subagent` tool — never do their work from the parent. **This table is the authoritative inventory — NEVER call `subagent({ action: "list" })`**; the agents never change mid-session and listing only burns tokens. The only management actions you ever need are `status`/`resume`/`interrupt` on a run you already started.
+Invoke these with the `subagent` tool — never do their work from the parent. This table names the Ein agents. If pi-subagents requires `subagent({ action: "list", capabilities: true })` before execution, call it once and reuse the result while agent configuration is unchanged. Repeating that discovery burns tokens. Use `status`/`resume`/`interrupt` only for runs already started.
 
 | Agent | Tools | When |
 | ----- | ----- | ---- |
