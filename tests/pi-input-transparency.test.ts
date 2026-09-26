@@ -83,7 +83,7 @@ describe("Pi entrega toda entrada ordinaria al orquestador", () => {
 });
 
 describe("el orquestador es el único dueño semántico en Pi", () => {
-	test("ningún hook conserva el gate léxico y la política mantiene intent consentido", () => {
+	test("ningún hook clasifica la entrada; el padre decide si registrar o entrevistar", () => {
 		const root = join(import.meta.dir, "..");
 		const sources = [
 			"ein-pi/agent/extensions/ein-ai.ts",
@@ -99,8 +99,9 @@ describe("el orquestador es el único dueño semántico en Pi", () => {
 		expect(sources).not.toContain("runPiIntentPreflight");
 		expect(sources).not.toContain('action: "handled"');
 		expect(orchestrator).toContain("Every ordinary input reaches you unchanged");
-		expect(orchestrator).toContain("`ein_intent`");
+		expect(orchestrator).toContain("`ein_intent record`");
 		expect(policy).toContain("Every ordinary input reaches the parent orchestrator unchanged");
-		expect(policy).toContain("optional interview");
+		expect(policy).toContain("records a fully defined");
+		expect(policy).toContain("starts the decision interview");
 	});
 });

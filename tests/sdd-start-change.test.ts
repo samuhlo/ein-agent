@@ -1,11 +1,22 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { initializeSddChange } from "../ein-pi/agent/lib/sdd-preflight-record.ts";
 import { ensurePhaseContextBudget } from "../ein-pi/agent/lib/sdd-phase-context-budget.ts";
 import { registerSddChangeSettings } from "../ein-pi/agent/extensions/internal/ein-sdd-change-settings.ts";
 import { runPreflightCommand } from "../ein-cc/sdd-cli/cli.ts";
+import { writeAgreement } from "../shared/sdd/intent-agreement.ts";
+import { createIntentMaterialKey } from "../shared/sdd/sdd-intent-preflight.ts";
+
+function agreed(cwd: string, change: string): void {
+	const dir = join(cwd, "openspec", "changes", change);
+	mkdirSync(dir, { recursive: true });
+	const material = { objective: `Complete ${change}`, boundaries: { in: [change], out: ["Other work"] }, completionCriteria: ["The requested behavior works"] };
+	writeAgreement(dir, { version: 1, work: change, change, status: "confirmed", material,
+		materialKey: createIntentMaterialKey(material), questions: [], fromRequest: true,
+		response: { id: `request-${change}`, text: `Complete ${change}`, source: "interactive" }, revision: "agreed-1" });
+}
 
 test("initializes an explicitly named change with both decisions before scope", () => {
 	const cwd = mkdtempSync(join(tmpdir(), "ein-start-"));
@@ -43,6 +54,10 @@ test("the Pi tool and Claude CLI initialize explicitly; reads never create", asy
 		expect(existsSync(join(cwd, "openspec"))).toBe(false);
 		await expect(execute({ change: "pi-change", create: true, tdd: "strict" })).rejects.toThrow();
 		expect(existsSync(join(cwd, "openspec"))).toBe(false);
+		await expect(execute({ change: "pi-change", create: true, tdd: "strict", lane: "standard" })).rejects.toThrow(/ein_intent/);
+		expect(runPreflightCommand(cwd, ["cc-change", "--create", "--tdd", "off", "--lane", "micro"]).exitCode).toBe(1);
+		agreed(cwd, "pi-change");
+		agreed(cwd, "cc-change");
 		const result = await execute({ change: "pi-change", create: true, tdd: "strict", lane: "standard" });
 		expect(result.details).toMatchObject({ ok: true, tdd: "strict", lane: "standard" });
 		expect(runPreflightCommand(cwd, ["cc-change", "--create", "--tdd", "off", "--lane", "micro"]).exitCode).toBe(0);

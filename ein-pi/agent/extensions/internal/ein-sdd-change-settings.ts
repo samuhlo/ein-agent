@@ -6,6 +6,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { assessSddIntentStartup } from "../../lib/sdd-intent-startup.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	LANE_LABEL,
@@ -71,7 +72,7 @@ export function registerSddChangeSettings(
 	registerEinTool({
 		name: "ein_sdd_preflight",
 		label: "Ein SDD Preflight",
-		description: "Read or record a change's TDD stance and lane. Before first scope, use create:true with an explicit change, tdd and lane to publish both decisions together. Reads never create a change. Existing choices require force to replace.",
+		description: "Read or record a change's TDD stance and lane. Before create:true, record a fully defined request with ein_intent record or resolve open product decisions with ein_intent propose. A confirmed intent is required for a new change. Reads never create a change. Existing choices require force to replace.",
 		parameters: {
 			type: "object",
 			properties: {
@@ -86,6 +87,8 @@ export function registerSddChangeSettings(
 			if (params.create) {
 				const tdd = normalizeTddStance(params.tdd), lane = normalizeLane(params.lane);
 				if (!params.change || !tdd || !lane) throw new Error("Creating a change requires explicit change, tdd and lane");
+				const intent = assessSddIntentStartup(ctx.cwd, params.change, false);
+				if (!intent.admitted) throw new Error(intent.reason);
 				const stance = initializeSddChange(ctx.cwd, params.change, tdd, lane, "pi");
 				return { content: [{ type: "text", text: changeStanceDirective(stance) }], details: { ok: true, change: params.change, tdd: stance.tdd, lane: stance.lane } };
 			}

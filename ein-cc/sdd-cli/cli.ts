@@ -27,6 +27,7 @@ import {
 	closeDeliveryViolation,
 	runCurrentPublicationCommand,
 	changeStanceDirective,
+	assessSddIntentStartup,
 	initializeSddChange,
 	closeChange,
 	commandIsExplicitlyAllowed,
@@ -253,6 +254,8 @@ export function runPreflightCommand(
 		const name = args[0];
 		const tdd = normalizeTddStance(flag("--tdd")), lane = normalizeLane(flag("--lane"));
 		if (!name || !tdd || !lane) return { text: "--create requires change, --tdd and --lane", exitCode: 1 };
+		const intent = assessSddIntentStartup(dir, name, false);
+		if (!intent.admitted) return { text: intent.reason, exitCode: 1 };
 		try { return { text: changeStanceDirective(initializeSddChange(dir, name, tdd, lane, "claude")), exitCode: 0 }; }
 		catch (error) { return { text: String(error), exitCode: 1 }; }
 	}

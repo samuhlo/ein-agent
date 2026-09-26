@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { registerToolCallGate } from "../ein-pi/agent/extensions/internal/ein-tool-call-gate.ts";
+import { writeAgreement } from "../shared/sdd/intent-agreement.ts";
+import { createIntentMaterialKey } from "../shared/sdd/sdd-intent-preflight.ts";
 
 const roots: string[] = [];
 
@@ -101,6 +103,32 @@ describe("delegation admission gate", () => {
 		expect(await h.gate(input)).toBeUndefined();
 		expect(existsSync(join(h.root, "openspec"))).toBe(false);
 		expect(existsSync(join(h.root, ".ein"))).toBe(false);
+	});
+
+	test("blocks first scope until intent is agreed and preserves legacy scope", async () => {
+		const h = harness();
+		const task = "change: create-course\nCreate a course from the center panel";
+		const input = { agent: "sdd-scope", task };
+		const blocked = await h.gate(input);
+		expect(blocked).toMatchObject({ block: true });
+		expect(String(blocked.reason)).toContain("ein_intent");
+		expect(existsSync(join(h.root, "openspec"))).toBe(false);
+		expect(h.snapshots).toEqual([]);
+
+		const dir = join(h.root, "openspec", "changes", "create-course");
+		mkdirSync(dir, { recursive: true });
+		const material = { objective: "Create a course", boundaries: { in: ["Center panel"], out: ["Teacher assignment"] }, completionCriteria: ["Course appears in the panel"] };
+		writeAgreement(dir, { version: 1, work: "create-course", change: "create-course", status: "confirmed",
+			material, materialKey: createIntentMaterialKey(material), questions: [], fromRequest: true,
+			response: { id: "user-1", text: "Create a course", source: "interactive" }, revision: "agreed-1" });
+		expect(await h.gate({ agent: "sdd-scope", task }, "call-2")).toBeUndefined();
+		expect(h.snapshots).toHaveLength(1);
+
+		const legacy = harness();
+		const legacyDir = join(legacy.root, "openspec", "changes", "old-change");
+		mkdirSync(legacyDir, { recursive: true });
+		writeFileSync(join(legacyDir, "scope.md"), "Existing scope\n");
+		expect(await legacy.gate({ agent: "sdd-scope", task: "change: old-change\nRetry scope" })).toBeUndefined();
 	});
 
 	test("keeps a valid three-scout fan-out and tracks its launcher once", async () => {

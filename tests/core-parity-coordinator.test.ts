@@ -89,10 +89,10 @@ describe("core parity: Claude coordinator contract", () => {
   test("publishes transparent ingress while Claude keeps its post-ingress preflight", () => {
     expect(canonical).toContain("Every ordinary input reaches the parent orchestrator unchanged");
     expect(canonical).toContain("No adapter classifier may consume");
-    expect(canonical).toContain("optional interview");
+    expect(canonical).toContain("records a fully defined");
 
     expect(adapter).toContain("Claude records agreements through `ein-cc-sdd intent`");
-    expect(adapter).toContain("Ordinary\nwork proceeds from the user's request without an intent record");
+    expect(adapter).toContain("New SDD work requires a confirmed agreement");
     expect(adapter).not.toContain("Pi asks two questions before working a change");
     expect(adapter).not.toMatch(/ask them, and only once per change/i);
 

@@ -71,6 +71,7 @@ import {
 import { beginPhaseRun } from "../../lib/sdd-phase-runtime.ts";
 import { phaseForAgent } from "../../lib/sdd-reconcile.ts";
 import type { PhaseRunReference } from "../../lib/sdd-phase-receipt.ts";
+import { assessSddIntentStartup } from "../../lib/sdd-intent-startup.ts";
 
 type ToolCallGateDependencies = Readonly<{
 	scoutTracking: ScoutTracking;
@@ -132,6 +133,16 @@ export function registerToolCallGate(
 				return undefined;
 			}
 			let items = collectDelegationItems(event.input);
+			if (items.some((item) => item.agent === "sdd-scope")) {
+				let target: ReturnType<typeof explicitPhaseTarget>;
+				try { target = explicitPhaseTarget(event.input); }
+				catch (error) { return { block: true, reason: error instanceof Error ? error.message : String(error) }; }
+				if (!target || target.phase !== "scope") {
+					return { block: true, reason: "A scope delegation must name exactly one change with a `change: <name>` line." };
+				}
+				const intent = assessSddIntentStartup(ctx.cwd, target.change);
+				if (!intent.admitted) return { block: true, reason: intent.reason };
+			}
 			const workKeys = [...new Set(items.flatMap((item) => {
 				const match = item.task?.match(/^intent_work:\s*([^\s]+)\s*$/m);
 				return match ? [match[1]!] : [];

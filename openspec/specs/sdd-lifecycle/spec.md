@@ -255,11 +255,18 @@ When: the review-size forecast measures that range.
 Then: the production count reflects only the production source lines, the OpenSpec lines are counted as neither production nor tests, and identical source changes yield the same production count regardless of artifact size.
 
 ## Scenario: orchestrator-owns-semantic-intent-routing
-title: The capable orchestrator owns semantic routing and explicit intent consent
-requirement: The system MUST make the parent orchestrator decide from the complete request whether to answer, investigate, start bounded work, or ask for a missing material decision, and MUST make it offer rather than infer the explicit intent channel when a decision-tree conversation would help.
+title: The capable orchestrator resolves intent before new SDD work
+requirement: The system MUST make the parent orchestrator decide from the complete request whether to answer, investigate, record a fully defined authorized SDD intent without another question, or interview the user about open product decisions before starting a new SDD change. The manual `/ein:intent` entrypoint remains available.
 Given: a request has reached the parent unchanged
-When: its meaning is conversational, read-only, modifying, or materially underdefined
-Then: the parent selects the smallest safe route, asks only for missing material input, and does not activate `/ein:intent` without user consent
+When: its meaning is conversational, read-only, fully defined modifying work, or materially underdefined SDD work
+Then: the parent selects the smallest safe route, asks only for missing material input, and does not treat prior recommendations or current code as a product decision made by the user
+
+## Scenario: new-sdd-scope-requires-agreed-intent
+title: A new scope cannot outrun a product decision
+requirement: The system MUST reject creation and first scope delegation for a new SDD change until its canonical intent is confirmed. Pending, cancelled, invalid and absent intent do not qualify. Already scoped legacy changes MAY resume without retrospective interviews; a pending or invalid intent still blocks them.
+Given: a new SDD change has no scope, or a legacy change already has scope.md
+When: Pi or Claude initializes the change or Pi delegates sdd-scope
+Then: the new change requires a confirmed agreement, while the legacy scope resumes only if no unresolved intent is present
 
 ## Scenario: ordinary-close-guards-preserved
 title: Preserve ordinary close readiness
