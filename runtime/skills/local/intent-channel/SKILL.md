@@ -8,8 +8,11 @@ license: internal
 
 El padre conduce la entrevista; los ejecutores reciben el acuerdo. Actívala antes
 de un nuevo cambio SDD o cuando el usuario pide intent, también en lenguaje natural.
-Una petición explícita de entrevista nunca se despacha con `record`. Para trabajo
-mecánico completo y autorizado, `record` conserva la petición sin inventar preguntas.
+Una petición explícita de entrevista nunca se despacha con `record`. Para una
+petición completa y autorizada sin decisiones de producto abiertas, `record`
+conserva lo acordado sin inventar preguntas ni pedir confirmación adicional.
+Para un cambio SDD, usa el mismo nombre en `work` y `change` tanto en `record`
+como en `propose`; sin esa vinculación no se puede iniciar `scope`.
 Conversar o investigar no inicia SDD.
 
 ## /ein:intent

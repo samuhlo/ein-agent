@@ -19,8 +19,8 @@ This file is the shared coordinator policy source. Claude-specific runtime behav
 
 - Every ordinary input reaches the parent orchestrator unchanged. No adapter classifier may consume, rewrite, postpone, or reinterpret an interactive, RPC, or extension message before the capable model sees it.
 - The parent decides from the complete meaning whether to answer, investigate, start bounded work, or ask for one missing material decision. Conversation and read-only work create no SDD state; clear modifications use the smallest safe harness and `sdd-scope` owns objective, boundaries, and completion criteria when a full change is needed.
-- The parent resolves ordinary requests from the conversation. Clear, authorized work proceeds without an intent tool call or a second confirmation. Ask only when a material choice is missing.
-- `/ein:intent` is an optional interview for a user who asks for one. Its drafts and `intent.md` preserve that conversation but never gate ordinary delegation, SDD phases, verification, or closing. Existing records remain readable.
+- Before starting a new SDD change, the parent checks the whole conversation for unresolved product decisions. It records a fully defined, authorized request without asking again; it starts the decision interview when two reasonable outcomes remain. A short reply inherits the prior objective and does not settle an unasked decision.
+- `/ein:intent` remains the manual entrypoint for exploring an idea. The same interview engine may start automatically for an underdefined SDD change. A confirmed agreement is required before creating a new change or delegating its first scope; an already scoped legacy change may resume without retroactive questions. Pending or invalid intent never counts as agreement.
 
 ## Linear (optional integration)
 

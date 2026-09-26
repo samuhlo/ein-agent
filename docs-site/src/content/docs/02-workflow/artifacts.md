@@ -9,7 +9,7 @@ En SDD los artefactos viven en `openspec/changes/<cambio>/`. Su propósito es pe
 
 | Archivo | Contenido |
 | --- | --- |
-| `intent.md` | Entrevista voluntaria de intención, cuando existe. |
+| `intent.md` | Acuerdo para un cambio SDD nuevo; guarda una petición clara o una entrevista confirmada. |
 | `scope.md` | Límites, éxito y restricciones del cambio. |
 | `map.md` | Fuentes y localización del trabajo. |
 | `design.md` | Decisiones, comportamiento y contrato de la solución. |

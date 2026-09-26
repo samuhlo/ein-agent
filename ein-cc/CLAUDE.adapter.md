@@ -48,15 +48,17 @@ from memory.
 
 ## Claude intent handoff
 
-When the user requests an intent interview, inspect its current draft with
+Before a new SDD change, inspect its current intent and draft with
 `ein-cc-sdd intent draft-list` and follow `ein-cc-sdd intent --help` for writes
-and recovery. Preserve recorded answers; a draft grants no implementation
-authority. An ordinary authorized change needs no interview.
+and recovery. A fully defined authorized request can be recorded without an
+interview. Open product decisions require the intent-channel interview and the
+user's answers. Preserve recorded answers; a draft grants no implementation
+authority. The manual `/ein:intent` entrypoint remains available.
 
-Read a confirmed `intent.md` when the user chose the optional interview and
-preserve its objective, boundaries, response and completion criteria. Ordinary
-work proceeds from the user's request without an intent record. A pending draft
-does not block separately authorized work.
+Read a confirmed `intent.md` and preserve its objective, boundaries, response
+and completion criteria. New SDD work requires a confirmed agreement before its
+first scope. An already scoped legacy change can resume without a new interview;
+pending and invalid drafts cannot authorize a new scope.
 
 Claude records agreements through `ein-cc-sdd intent`, using the literal user
 answer and the agreed material. Its provenance is `claude-coordinator`: the
@@ -75,7 +77,7 @@ corrects the objective, passing the revision from `objective show`. The JSON is
 the request fields. A response such as “sí, continúa” remains a response. A
 confirmed intent writes its own `material.objective` and is the canonical source.
 
-When an optional confirmed agreement exists, use it as context. Claude has no
+When a confirmed agreement exists, use it as context. Claude has no
 automatic Pi write hook. Rerun verification if implementation or acceptance
 criteria changed. `--force` cannot bypass failed verification, pending tasks or
 spec conflicts.

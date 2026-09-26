@@ -13,7 +13,7 @@ openspec/
   specs/
   changes/
     nombre-del-cambio/
-      intent.md  # solo si se pidió una entrevista de intención
+      intent.md  # acuerdo del cambio nuevo; los históricos pueden no tenerlo
       scope.md
       map.md
       design.md
@@ -28,7 +28,7 @@ Es el recorrido standard. Los archivos aparecen según avanza el trabajo; no se 
 
 ## Intención y contrato
 
-`intent.md` conserva una entrevista de intención cuando se pidió expresamente. No es requisito para abrir, ejecutar, verificar o cerrar un cambio SDD.
+`intent.md` conserva el acuerdo de un cambio SDD nuevo. Si la petición ya define resultado, límites y éxito, Ein lo registra sin preguntas adicionales. Si quedan decisiones de producto, las consulta antes de crear el cambio. Los cambios históricos con `scope.md` pueden continuar sin una entrevista retroactiva.
 
 Scope acota; map localiza; design decide; tasks concreta el trabajo. Verify contrasta implementación, criterios y evidencias con el alcance y diseño vigentes. No basta cumplir una interpretación antigua del diseño.
 

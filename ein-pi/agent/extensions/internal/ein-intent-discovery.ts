@@ -157,7 +157,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 	registerEinTool({
 		name: "ein_intent",
 		label: "Ein Intent",
-		description: "Optional product intent interview, used only when the user requests it. Load intent-channel for interviews. propose retains the decision tree and returns the questionnaire; status recovers a draft. Ordinary work and SDD do not require this tool or an intent_work marker.",
+		description: "Resolve product intent before a new SDD change. Pass the same slug as work and change for SDD. Use record without questions for a fully defined human request; use propose and the intent-channel interview when product decisions remain. status recovers a draft. /ein:intent also opens this interview manually.",
 		parameters: {
 			type: "object", required: ["action"],
 			properties: {
@@ -194,7 +194,7 @@ export function registerIntentDiscovery(pi: ExtensionAPI, registerEinTool: EinTo
 				const reviewing = snapshot.agreement?.stage === "review";
 				let instruction = state === "confirmed"
 					? `Optional interview recorded for ${request.work}. Continue within the user's authorized scope; the interview does not grant or remove execution authority.`
-					: "This optional interview is unfinished. It does not restrict separately authorized work.";
+					: "This interview is unfinished. New SDD work for this change waits for agreement; unrelated authorized work may continue.";
 				if (state === "pending") {
 					if (snapshot.response) instruction = reviewing
 						? "Interpret the final review response. Confirm only explicit agreement with unchanged material; corrections reopen a round."

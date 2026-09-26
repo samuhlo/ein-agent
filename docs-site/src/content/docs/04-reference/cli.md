@@ -136,10 +136,12 @@ La integración con Engram se ha retirado. La continuidad queda en los archivos 
 
 ## Comandos del flujo SDD
 
-En Pi, `/ein:intent` abre una entrevista voluntaria; `/ein:models` configura modelos
+En Pi, `/ein:intent` abre la entrevista manual; `/ein:models` configura modelos
 y esfuerzo por rol, y `/ein:skills` muestra las skills.
 
-También puedes pedir «vamos a hacer el intent». Cuando eliges esa entrevista, el padre
+Antes de iniciar un cambio SDD nuevo, Ein registra una petición ya definida o inicia
+la entrevista si faltan decisiones de producto. También puedes pedir «vamos a hacer el intent».
+En la entrevista, el padre
 recorre las decisiones por rondas: pregunta juntas las independientes, recomienda
 respuestas e investiga los hechos con scout. Las preguntas dependientes esperan.
 Explica las alternativas en el chat y recoge la elección con `ask_user_question`,
@@ -158,8 +160,8 @@ El TODO resume actividad y siguiente paso en hasta tres líneas, desde antes de
 scope y durante la revisión final. `Ctrl+Shift+E` despliega sus detalles. Hechos,
 permisos y decisiones no se mezclan en un porcentaje de progreso. Las ramas y
 respuestas se conservan en la sesión; al confirmar, `intent.md` queda disponible
-como contexto. La entrevista no bloquea trabajo ordinario autorizado ni es un
-paso obligatorio de SDD.
+como contrato del cambio. Un trabajo pequeño y definido no necesita entrevista;
+el cambio SDD nuevo sí necesita un acuerdo registrado antes de `scope`.
 
 Estos no vienen del instalador: pertenecen al runtime.
 

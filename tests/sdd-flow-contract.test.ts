@@ -274,11 +274,12 @@ describe("adapter Pi: entrada transparente y decisión semántica del parent", (
 		}
 	});
 
-	test("el parent decide por significado y el intent explícito conserva consentimiento", () => {
+	test("el parent decide por significado y resuelve intent antes de un nuevo cambio", () => {
 		expect(orchestrator).toContain("Every ordinary input reaches you unchanged");
-		expect(orchestrator).toContain("`ein_intent`");
+		expect(orchestrator).toContain("`ein_intent record`");
 		expect(policy).toContain("Every ordinary input reaches the parent orchestrator unchanged");
-		expect(policy).toContain("optional interview");
+		expect(policy).toContain("records a fully defined");
+		expect(policy).toContain("starts the decision interview");
 	});
 });
 
