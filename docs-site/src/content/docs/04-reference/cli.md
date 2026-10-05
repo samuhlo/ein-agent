@@ -5,7 +5,7 @@ sources: ["README.md", "installer/README.md", "ein-pi/agent/app.ts", "ein-pi/age
 verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
-Referencia de la [última versión de Ein](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0). El proyecto está cerrado como legado; [n_ein](https://github.com/samuhlo/n_ein) tiene comandos e instalación propios.
+Referencia de la [última versión de Ein](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1). El proyecto está cerrado como legado; [n_ein](https://github.com/samuhlo/n_ein) tiene comandos e instalación propios.
 
 Hay dos binarios y hacen cosas distintas:
 

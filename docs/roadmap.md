@@ -1,6 +1,6 @@
 # Estado final de Ein
 
-Ein terminó como proyecto independiente en [`installer-v0.99.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0). Este archivo sustituye el roadmap de desarrollo activo: no hay nuevas fases, integraciones o modelos comprometidos para Ein. La evolución del producto continúa en [n_ein](https://github.com/samuhlo/n_ein).
+Ein terminó como proyecto independiente en [`installer-v0.99.1`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1). Este archivo sustituye el roadmap de desarrollo activo: no hay nuevas fases, integraciones o modelos comprometidos para Ein. La evolución del producto continúa en [n_ein](https://github.com/samuhlo/n_ein).
 
 La [retrospectiva](legacy-retrospective.md) explica qué se construyó, qué se comprobó y por qué se abrió el proyecto nuevo. El comportamiento de esta versión se documenta en la [web](https://samuhlo.github.io/ein-agent/), en `openspec/specs/` y en las notas de la release. Los [ADR](adr/) y las [evaluaciones](../evals/) conservan decisiones e hipótesis históricas; sus propuestas pendientes no son compromisos de mantenimiento.
 

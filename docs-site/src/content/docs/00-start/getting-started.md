@@ -5,7 +5,7 @@ sources: ["installer/install.sh", "installer/src/core/deps.ts", "installer/READM
 verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
-Ein es un [proyecto legado](/ein-agent/00-start/legacy-and-nein/). Esta guía instala su [última release, `installer-v0.99.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0); para el desarrollo activo consulta [n_ein](https://github.com/samuhlo/n_ein). Ein soporta macOS y Linux, en ARM64 y x64. Windows no está soportado. Pi es el núcleo y requiere Node **22.19.0 o posterior**; si no cumple el requisito, el instalador se detiene con instrucciones. Los binarios del instalador son standalone; el runtime tiene sus propias dependencias y autenticación.
+Ein es un [proyecto legado](/ein-agent/00-start/legacy-and-nein/). Esta guía instala su [última release, `installer-v0.99.1`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1); para el desarrollo activo consulta [n_ein](https://github.com/samuhlo/n_ein). Ein soporta macOS y Linux, en ARM64 y x64. Windows no está soportado. Pi es el núcleo y requiere Node **22.19.0 o posterior**; si no cumple el requisito, el instalador se detiene con instrucciones. Los binarios del instalador son standalone; el runtime tiene sus propias dependencias y autenticación.
 
 ## Versión final estable
 

@@ -5,12 +5,28 @@ Todos los cambios relevantes de Ein. El formato sigue
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
 `installer-v*`.
 
+## [0.99.1] - 2026-10-05
+
+### Fixed
+
+- El smoke de actualización desde una release publicada acepta ahora un target
+  estable, selecciona su canal y comprueba que el marcador persiste `stable`.
+  El checker anterior solo admitía alphas: publicó los assets de `0.99.0` y
+  falló antes de probar la actualización. `0.99.1` la sustituye como última
+  versión tras completar ese recorrido.
+
+### Documentation
+
+- README, web y retrospectiva apuntan a la release final comprobada.
+
 ## [0.99.0] - 2026-10-05
 
 ### Changed
 
-- Ein termina como proyecto legado. Esta es su última release estable; el
-  desarrollo activo continúa en [n_ein](https://github.com/samuhlo/n_ein).
+- Ein termina como proyecto legado; el desarrollo activo continúa en
+  [n_ein](https://github.com/samuhlo/n_ein). La comprobación de actualización
+  publicada quedó pendiente por una regla alpha del script de pruebas y se
+  completó en `0.99.1`.
 - El README y la web documentan el alcance final, la evidencia y los límites.
   El historial de ADR, evaluaciones y OpenSpec permanece disponible.
 - El binario conserva las capacidades de `0.99.0-alpha.18`; no se incorporan

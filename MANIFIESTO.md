@@ -1,7 +1,7 @@
 # Manifiesto Ein
 
 > **Documento histórico.** Recoge los principios que guiaron Ein durante su
-> desarrollo. El proyecto quedó cerrado como legado en la versión 0.99.0;
+> desarrollo. El proyecto quedó cerrado como legado en la versión 0.99.1;
 > [esta retrospectiva](docs/legacy-retrospective.md) explica qué principios
 > resistieron las pruebas y qué decisiones cambiaron en
 > [n_ein](https://github.com/samuhlo/n_ein). No es el roadmap activo.

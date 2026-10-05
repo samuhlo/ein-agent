@@ -1,6 +1,6 @@
 # Ein: qué construí y qué aprendí
 
-**Estado:** proyecto legado. La última versión distribuida es [`installer-v0.99.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0); el desarrollo continúa en [n_ein](https://github.com/samuhlo/n_ein). Este texto evalúa decisiones de Ein, no describe una migración automática ni afirma que ambos productos sean compatibles.
+**Estado:** proyecto legado. La última versión distribuida es [`installer-v0.99.1`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1); el desarrollo continúa en [n_ein](https://github.com/samuhlo/n_ein). Este texto evalúa decisiones de Ein, no describe una migración automática ni afirma que ambos productos sean compatibles.
 
 ## El encargo
 
