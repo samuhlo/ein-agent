@@ -2,7 +2,7 @@
 title: "Claude Code"
 description: "Relevo SDD con límites explícitos."
 sources: ["ein-cc/README.md", "ein-cc/sync.ts", "ein-cc/sdd-cli/cli.ts"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 Añade Claude con `ein-install install --runtime both`. La aplicación `ein` permite arrancarlo; `ein-cc` es el acceso avanzado en Fish. Su hogar de configuración es `~/.claude-ein`.

@@ -2,7 +2,7 @@
 title: "Qué es Ein"
 description: "Pensar bien para ejecutar con menos coste y mantener el trabajo revisable."
 sources: ["runtime/assets/orchestrator-core.md", "docs/adr/0006-remove-runtime-compressors.md", "README.md"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 Esta página describe el funcionamiento de la **última versión de Ein**. La
@@ -31,4 +31,4 @@ Ein retiró Hypa y Headroom: la evaluación no justificó mantener esas integrac
 
 Significa que hay comprobaciones y una evaluación del contrato declarado. No garantiza que los requisitos sean perfectos ni que no queden errores. El informe debe identificar cobertura insuficiente, pruebas bloqueadas y riesgos materiales.
 
-Empieza por [instalación](/ein-agent/00-start/getting-started/), sigue con [tu primer cambio](/ein-agent/00-start/first-run/) y consulta las [limitaciones](/ein-agent/05-debug/known-limitations/). La [release final](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0) identifica el paquete documentado.
+Empieza por [instalación](/ein-agent/00-start/getting-started/), sigue con [tu primer cambio](/ein-agent/00-start/first-run/) y consulta las [limitaciones](/ein-agent/05-debug/known-limitations/). La [release final](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1) identifica el paquete documentado.

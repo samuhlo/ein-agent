@@ -370,7 +370,8 @@ describe("release asset contract", () => {
     expect(smokeStep).toContain("installer-v0.95.0-alpha.3");
     expect(smokeStep).toContain('"$RELEASE_TAG"');
     expect(script).toContain("gh release download");
-    expect(script).toContain('ein-install update --yes "$target_tag"');
+    expect(script).toContain('ein-install update --yes --channel "$target_channel" "$target_tag"');
+    expect(script).toContain('grep -Fq "\\\"channel\\\": \\\"$target_channel\\\"" "$marker"');
     expect(script).toContain("assert_preserved_state");
     expect(script).toContain("E2E_RELEASE_UPDATE_RESULT=OK");
   });
@@ -516,18 +517,24 @@ describe("release asset contract", () => {
     expect(smoke).toContain('"$SMOKE_SOURCE_SHA":e2e/Dockerfile.ubuntu');
   });
 
-  test("the published upgrade smoke accepts alpha hotfix tags", () => {
+  test("the published upgrade smoke accepts alpha sources and stable targets", () => {
     const script = readFileSync(RELEASE_UPDATE_E2E_SCRIPT_PATH, "utf8");
-    const pattern = script.split("\n").find((line) => line.startsWith("tag_pattern="));
-    expect(pattern).toBeDefined();
-    for (const [tag, accepted] of [
-      ["installer-v0.99.0-alpha.15", true],
-      ["installer-v0.99.0-alpha.15.1", true],
-      ["installer-v0.99.0-alpha.15.0", false],
-      ["installer-v0.99.0-alpha.015.1", false],
+    const sourcePattern = script.split("\n").find((line) => line.startsWith("source_pattern="));
+    const targetPattern = script.split("\n").find((line) => line.startsWith("target_pattern="));
+    expect(sourcePattern).toBeDefined();
+    expect(targetPattern).toBeDefined();
+    for (const [tag, sourceAccepted, targetAccepted] of [
+      ["installer-v0.99.0-alpha.15", true, true],
+      ["installer-v0.99.0-alpha.15.1", true, true],
+      ["installer-v0.99.1", false, true],
+      ["installer-v0.99.0-alpha.15.0", false, false],
+      ["installer-v0.99.0-alpha.015.1", false, false],
+      ["installer-v0.99.1-beta.1", false, false],
     ] as const) {
-      const result = spawnSync("bash", ["-c", `${pattern}\n[[ "$1" =~ $tag_pattern ]]`, "_", tag]);
-      expect(result.status === 0).toBe(accepted);
+      const source = spawnSync("bash", ["-c", `${sourcePattern}\n[[ "$1" =~ $source_pattern ]]`, "_", tag]);
+      const target = spawnSync("bash", ["-c", `${targetPattern}\n[[ "$1" =~ $target_pattern ]]`, "_", tag]);
+      expect(source.status === 0).toBe(sourceAccepted);
+      expect(target.status === 0).toBe(targetAccepted);
     }
   });
 

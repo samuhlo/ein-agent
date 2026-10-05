@@ -2,10 +2,10 @@
 title: "Limitaciones conocidas"
 description: "Qué sigue requiriendo pruebas y revisión humana."
 sources: ["docs/adr/0006-remove-runtime-compressors.md", "runtime/assets/orchestrator-core.md", "ein-cc/README.md", "runtime/agents/sdd-verify.md"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
-Ein es un proyecto legado. Esta página describe límites de su [versión final](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0), no promesas de trabajo futuro. El [changelog](https://github.com/samuhlo/ein-agent/blob/main/CHANGELOG.md) identifica lo que contenía cada release anterior.
+Ein es un proyecto legado. Esta página describe límites de su [versión final](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1), no promesas de trabajo futuro. El [changelog](https://github.com/samuhlo/ein-agent/blob/main/CHANGELOG.md) identifica lo que contenía cada release anterior.
 
 ## Plataformas y modelos
 

@@ -2,7 +2,7 @@
 title: "Ejemplo real"
 description: "Un cambio de verdad de principio a fin, con lo que salió torcido incluido."
 sources: ["openspec/changes/archive/docs-sync-contract/summary.md"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 Este ejemplo conserva la evidencia y las cifras de un cambio histórico; no describe el inventario ni los resultados actuales. El cierre actual incorpora los informes de apply y verify al resumen antes de retirar sus archivos originales.

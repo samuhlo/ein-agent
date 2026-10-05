@@ -6,10 +6,10 @@
 
 [El nuevo proyecto: n_ein](https://github.com/samuhlo/n_ein) ·
 [Documentación de Ein](https://samuhlo.github.io/ein-agent/) ·
-[Última release de Ein](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0) ·
+[Última release de Ein](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1) ·
 [Qué aprendí](docs/legacy-retrospective.md)
 
-`LEGACY · versión final 0.99.0 · sin desarrollo de nuevas funciones`
+`LEGACY · versión final 0.99.1 · sin desarrollo de nuevas funciones`
 </div>
 
 ---
@@ -52,7 +52,7 @@ Las [limitaciones conocidas](https://samuhlo.github.io/ein-agent/05-debug/known-
 
 ## // 03_ ÚLTIMA VERSIÓN
 
-La última versión de este proyecto es [`installer-v0.99.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0). El [instalador](https://samuhlo.github.io/ein-agent/00-start/getting-started/) explica requisitos, comprobación y recuperación. Si ya tienes Ein, consulta sus notas antes de actualizar; los hogares de Ein y `n_ein` son independientes.
+La última versión de este proyecto es [`installer-v0.99.1`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1). El [instalador](https://samuhlo.github.io/ein-agent/00-start/getting-started/) explica requisitos, comprobación y recuperación. Si ya tienes Ein, consulta sus notas antes de actualizar; los hogares de Ein y `n_ein` son independientes.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash

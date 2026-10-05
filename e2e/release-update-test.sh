@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Published-release smoke: install the previous alpha in a disposable Ubuntu
+# Published-release smoke: install a previous alpha in a disposable Ubuntu
 # home, update through the real GitHub API/assets, and prove private state and
-# the installed identity survive the transition to the just-published alpha.
+# the installed identity survive the transition to a new alpha or stable tag.
 # =============================================================================
 set -euo pipefail
 
@@ -12,11 +12,13 @@ REPOSITORY="${EIN_INSTALLER_REPO:-samuhlo/ein-agent}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="ein-release-update-ubuntu"
 
-tag_pattern='^installer-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-alpha\.(0|[1-9][0-9]*)(\.[1-9][0-9]*)?$'
-for tag in "$SOURCE_TAG" "$TARGET_TAG"; do
-  [[ "$tag" =~ $tag_pattern ]] || { echo "[assert] tag alpha no canónico: $tag" >&2; exit 1; }
-done
+source_pattern='^installer-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-alpha\.(0|[1-9][0-9]*)(\.[1-9][0-9]*)?$'
+target_pattern='^installer-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-alpha\.(0|[1-9][0-9]*)(\.[1-9][0-9]*)?)?$'
+[[ "$SOURCE_TAG" =~ $source_pattern ]] || { echo "[assert] source alpha no canónico: $SOURCE_TAG" >&2; exit 1; }
+[[ "$TARGET_TAG" =~ $target_pattern ]] || { echo "[assert] target no canónico: $TARGET_TAG" >&2; exit 1; }
 [[ "$SOURCE_TAG" != "$TARGET_TAG" ]] || { echo "[assert] source y target deben diferir" >&2; exit 1; }
+TARGET_CHANNEL=stable
+[[ "$TARGET_TAG" == *-alpha.* ]] && TARGET_CHANNEL=alpha
 
 case "$(uname -m)" in
   arm64|aarch64) PLATFORM="linux-arm64" ;;
@@ -41,9 +43,10 @@ docker build -t "$IMAGE" -f "$HERE/Dockerfile.ubuntu" "$HERE"
 docker run --rm -i \
   -e GH_TOKEN -e GITHUB_TOKEN \
   -v "$SOURCE_BINARY:/usr/local/bin/ein-old:ro" \
-  "$IMAGE" -euo pipefail -s -- "$SOURCE_TAG" "$TARGET_TAG" <<'EOF'
+  "$IMAGE" -euo pipefail -s -- "$SOURCE_TAG" "$TARGET_TAG" "$TARGET_CHANNEL" <<'EOF'
 source_tag="${1:?falta source tag}"
 target_tag="${2:?falta target tag}"
+target_channel="${3:?falta target channel}"
 source_version="${source_tag#installer-v}"
 target_version="${target_tag#installer-v}"
 marker="$HOME/.pi-ein/agent/.ein-install.json"
@@ -103,10 +106,10 @@ SPY
 chmod +x "$HOME/.local/bin/hypa" "$HOME/.local/bin/curl"
 
 echo "/// release-update: $source_tag -> $target_tag"
-ein-install update --yes "$target_tag"
+ein-install update --yes --channel "$target_channel" "$target_tag"
 ein-install --version | grep -Fq "ein-installer $target_version"
 grep -Fq "\"version\": \"$target_version\"" "$marker"
-grep -Fq '"channel": "alpha"' "$marker"
+grep -Fq "\"channel\": \"$target_channel\"" "$marker"
 assert_preserved_state
 for retired in lib/hypa.ts lib/headroom.ts extensions/ein-headroom.ts; do
   test ! -e "$HOME/.pi-ein/agent/$retired" || { echo "[assert] compresor retirado en runtime: $retired" >&2; exit 1; }
@@ -115,7 +118,7 @@ echo "LEGACY_CALLER_RETIRED_TOOL_CALLS=$(wc -l <"$EIN_TEST_RETIRED_TOOL_AUDIT" |
 # The installed version must not maintain the retired tool, even when present.
 export EIN_TEST_RETIRED_TOOL_AUDIT="$HOME/retired-tools-installed-version.log"
 : >"$EIN_TEST_RETIRED_TOOL_AUDIT"
-ein-install update --yes "$target_tag"
+ein-install update --yes --channel "$target_channel" "$target_tag"
 assert_preserved_state
 ein-install doctor
 test ! -s "$EIN_TEST_RETIRED_TOOL_AUDIT" || { echo "[assert] la versión instalada invocó Hypa" >&2; exit 1; }
