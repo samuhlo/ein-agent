@@ -3,6 +3,18 @@
 Todos los cambios relevantes de Ein. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el versionado es
 [SemVer](https://semver.org/lang/es/). Las releases se publican como tags
+`installer-v*`.
+
+## [0.99.0] - 2026-10-05
+
+### Changed
+
+- Ein termina como proyecto legado. Esta es su última release estable; el
+  desarrollo activo continúa en [n_ein](https://github.com/samuhlo/n_ein).
+- El README y la web documentan el alcance final, la evidencia y los límites.
+  El historial de ADR, evaluaciones y OpenSpec permanece disponible.
+- El binario conserva las capacidades de `0.99.0-alpha.18`; no se incorporan
+  funcionalidades del proyecto nuevo ni cambios locales no publicados.
 
 ## [0.99.0-alpha.18] - 2026-09-26
 

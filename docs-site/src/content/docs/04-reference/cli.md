@@ -5,6 +5,8 @@ sources: ["README.md", "installer/README.md", "ein-pi/agent/app.ts", "ein-pi/age
 verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
+Referencia de la [última versión de Ein](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0). El proyecto está cerrado como legado; [n_ein](https://github.com/samuhlo/n_ein) tiene comandos e instalación propios.
+
 Hay dos binarios y hacen cosas distintas:
 
 - **`ein`** abre la aplicación de terminal. Es desde donde se ve y se controla

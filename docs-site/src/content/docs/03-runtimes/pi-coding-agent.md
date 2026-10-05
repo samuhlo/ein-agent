@@ -23,7 +23,7 @@ TDD y el carril se resuelven por cambio. Linear y Codegraph son integraciones op
 
 ## Modelos baratos y locales
 
-Asigna capacidad de razonamiento a quienes deciden y prueba ejecutores más baratos con encargos bien cerrados. No hay un preset universal ni una garantía de calidad por tamaño del modelo. El uso local es futuro y opcional: necesita evaluación con el modelo y hardware elegidos antes de recomendarlo como ruta validada.
+Asigna capacidad de razonamiento a quienes deciden y prueba ejecutores más baratos con encargos bien cerrados. No hay un preset universal ni una garantía de calidad por tamaño del modelo. Ein terminó sin validar un modelo y hardware locales concretos.
 
 ## Actualización y aislamiento
 

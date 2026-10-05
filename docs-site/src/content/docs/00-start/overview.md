@@ -5,11 +5,15 @@ sources: ["runtime/assets/orchestrator-core.md", "docs/adr/0006-remove-runtime-c
 verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
+Esta página describe el funcionamiento de la **última versión de Ein**. La
+[transición a n_ein](/ein-agent/00-start/legacy-and-nein/) explica qué cambió de
+rumbo y dónde continúa el desarrollo.
+
 **Hacer que pensar bien permita ejecutar de forma más sencilla, barata y local, manteniendo las exigencias de calidad.**
 
 Ein es un arnés de agentes sobre Pi Coding Agent, con Claude Code como relevo opcional. El modelo capaz aclara la petición y toma decisiones; los ejecutores reciben encargos concretos con criterios de terminación. Lo que se puede calcular —estado del cambio, contratos, progreso— se deja a herramientas.
 
-Puedes usar modelos baratos alojados como ejecutores. El uso local es futuro y opcional: no necesitas una GPU ni un modelo local para usar Ein. Tampoco se da por demostrado que cualquier modelo cumpla el contrato; se comprueba sobre trabajo real antes de confiarle más.
+Puedes usar modelos baratos alojados como ejecutores. Ein terminó sin una ruta local validada: no necesitas una GPU ni un modelo local para instalarlo. Tampoco se da por demostrado que cualquier modelo cumpla el contrato; hay que comprobarlo sobre trabajo real antes de confiarle más.
 
 ## Un flujo proporcionado al trabajo
 
@@ -27,4 +31,4 @@ Ein retiró Hypa y Headroom: la evaluación no justificó mantener esas integrac
 
 Significa que hay comprobaciones y una evaluación del contrato declarado. No garantiza que los requisitos sean perfectos ni que no queden errores. El informe debe identificar cobertura insuficiente, pruebas bloqueadas y riesgos materiales.
 
-Empieza por [instalación](/ein-agent/00-start/getting-started/), sigue con [tu primer cambio](/ein-agent/00-start/first-run/) y consulta las [limitaciones](/ein-agent/05-debug/known-limitations/). Las [notas de release](https://github.com/samuhlo/ein-agent/releases) indican qué contiene cada versión publicada; `main` puede incluir correcciones pendientes de release.
+Empieza por [instalación](/ein-agent/00-start/getting-started/), sigue con [tu primer cambio](/ein-agent/00-start/first-run/) y consulta las [limitaciones](/ein-agent/05-debug/known-limitations/). La [release final](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0) identifica el paquete documentado.

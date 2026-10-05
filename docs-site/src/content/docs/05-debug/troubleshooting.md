@@ -69,6 +69,8 @@ bun ein-pi/agent/lib/docs-site-drift-detector.ts --check-sources
 bun ein-pi/agent/lib/docs-site-drift-detector.ts
 ```
 
-El primer comando comprueba rutas declaradas; el segundo detecta cambios desde la revisión documentada. Un resultado limpio no sustituye revisar el significado del texto. Las guías del checkout pueden describir código aún pendiente de release.
+El primer comando comprueba rutas declaradas; el segundo detecta cambios desde la revisión documentada. Un resultado limpio no sustituye revisar el significado del texto. La [release final](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0) fija qué paquete corresponde a estas guías.
 
-Si persiste el problema, abre un [issue](https://github.com/samuhlo/ein-agent/issues) con versión, plataforma, pasos y diagnóstico. Revisa que la salida no incluya credenciales antes de publicarla.
+Ein ya no recibe nuevas funciones ni incidencias. Conserva versión, plataforma,
+pasos y diagnóstico si necesitas investigar una instalación existente; revisa
+que el informe no incluya credenciales antes de compartirlo.

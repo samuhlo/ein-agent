@@ -25,6 +25,10 @@ Esta ruta ad-hoc no crea `openspec/changes/` ni exige un informe artificial en d
 
 Puedes pedirlo expresamente. Para trabajo que necesita diseño y seguimiento, Ein usa [el flujo SDD](/ein-agent/02-workflow/workflow-overview/): alcance, mapa, diseño, tareas, aplicación, verificación y cierre. Cada fase deja información en disco para poder retomar el cambio en otra sesión.
 
+Antes de abrir ese cambio nuevo, Ein registra tu petición si ya está definida o
+aclara las decisiones pendientes con intent. El acuerdo confirmado precede a
+`scope`; confirmar solo una conversación de diseño no autoriza escribir código.
+
 La postura TDD se decide para el cambio. Tener tests existentes no activa por sí solo TDD estricto. En cualquier postura se conserva la exigencia de pruebas pertinentes y revisión independiente.
 
 ## Revisar la entrega

@@ -5,13 +5,13 @@ sources: ["docs/adr/0006-remove-runtime-compressors.md", "runtime/assets/orchest
 verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
 ---
 
-Ein está en desarrollo beta y publica prereleases alpha. Los formatos, comandos y capacidades pueden cambiar; las [notas de release](https://github.com/samuhlo/ein-agent/releases) y el [changelog](https://github.com/samuhlo/ein-agent/blob/main/CHANGELOG.md) identifican lo publicado.
+Ein es un proyecto legado. Esta página describe límites de su [versión final](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0), no promesas de trabajo futuro. El [changelog](https://github.com/samuhlo/ein-agent/blob/main/CHANGELOG.md) identifica lo que contenía cada release anterior.
 
 ## Plataformas y modelos
 
 Se construyen binarios para Linux y macOS en ARM64 y x64. La evidencia de una plataforma o un escenario no certifica todos los entornos. Windows no está soportado.
 
-La ejecución local es futura y opcional. No se declara validado un modelo o GPU concretos sin ejecutar pruebas con ellos. Un ejecutor barato alojado es una ruta válida, sujeto a encargos suficientemente claros y a la misma verificación.
+Ein no validó un modelo o GPU local concretos. Un ejecutor barato alojado es una ruta disponible, sujeto a encargos suficientemente claros y a la misma verificación. Tampoco quedó demostrado un ahorro económico general sobre el flujo completo.
 
 ## Coste y contexto
 

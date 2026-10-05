@@ -26,23 +26,24 @@ const entries = [
 	<section class="hero">
 		<div class="hero-head">
 			<h1>EIN <span class="slash">//</span></h1>
-			<span class="badge">BETA</span>
+			<span class="badge">LEGACY · 0.99.0</span>
 		</div>
 		<p class="tagline">
-			Hacer que pensar bien permita ejecutar de forma más sencilla, barata y local,
-			<strong>manteniendo las exigencias de calidad</strong>.
+			Un proyecto de aprendizaje sobre agentes de programación: cambios
+			<strong>revisables, verificables y recuperables</strong>.
 		</p>
-		<p class="note">Modelos capaces para decidir; encargos acotados para ejecutar.
-			Puedes usar modelos baratos alojados. La ejecución local es futura y opcional.</p>
+		<p class="note">Esta web documenta la última versión de Ein. El desarrollo
+			activo continúa en <a href="https://github.com/samuhlo/n_ein">n_ein</a>,
+			con un flujo más simple y los aprendizajes de este proyecto.</p>
 		<div class="actions">
-			<a class="btn primary" href={`${base}/00-start/getting-started/`}>
-				<span class="k">[I]</span> Instalar
+			<a class="btn primary" href="https://github.com/samuhlo/n_ein">
+				<span class="k">[N]</span> Ver n_ein
 			</a>
-			<a class="btn" href={`${base}/00-start/overview/`}>
-				<span class="k">[D]</span> Documentación
+			<a class="btn" href={`${base}/00-start/legacy-and-nein/`}>
+				<span class="k">[L]</span> Qué aprendí
 			</a>
-			<a class="btn" href="https://github.com/samuhlo/ein-agent">
-				<span class="k">[G]</span> GitHub
+			<a class="btn" href="https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0">
+				<span class="k">[R]</span> Versión final
 			</a>
 		</div>
 		<p class="kbd-hint">
@@ -52,12 +53,11 @@ const entries = [
 	</section>
 
 	<section class="panel install">
-		<div class="panel-title">INSTALACIÓN</div>
+		<div class="panel-title">EIN · ÚLTIMA VERSIÓN</div>
 		<pre><code>curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 ein</code></pre>
 		<p class="note">
-			El comando instala el canal estable. Para una alpha, usa el comando de sus
-			<a href="https://github.com/samuhlo/ein-agent/releases">notas de release</a>.
+			El comando instala la <a href="https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0">versión final 0.99.0</a>.
 			EIN instala Pi y pregunta si quieres añadir Claude. Tus
 			<code>pi</code> y <code>claude</code> vanilla quedan intactos.
 		</p>

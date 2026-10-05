@@ -79,12 +79,12 @@ describe("estructura canónica de ein-pi", () => {
 	test("README distingue runtime propio, vendor y adaptadores", () => {
 		const content = readRepoFile("README.md");
 
-		expect(content).toContain("`runtime/` es el contenido propio y portable");
-		expect(content).toContain("`vendor/skills/` deja visible lo externo");
-		expect(content).toContain("`shared/contracts/` contiene lógica sin dependencia de adaptadores");
+		expect(content).toContain("runtime/");
+		expect(content).toContain("vendor/skills/");
+		expect(content).toContain("shared/");
 		// La aplicación posee `ein`; el instalador posee su ciclo de vida.
-		expect(content).toContain("├── installer/      # ciclo de vida: ein-install");
-		expect(content).toContain("Los verbos de ciclo de vida los ejecuta `ein-install`");
+		expect(content).toContain("installer/");
+		expect(content).toContain("`ein-install` instala, diagnostica, actualiza y restaura");
 	});
 
 	test("el corte portable/runtime es el declarado", () => {

@@ -11,7 +11,7 @@ El orquestador mantiene la conversación, aclara decisiones, elige el siguiente 
 
 El trabajo de razonamiento se reparte entre el padre, scope, design y tasks. El objetivo es que apply reciba una ruta corta: qué cambiar, dónde, qué conservar, cómo comprobarlo y cuándo parar. Si el encargo carece de una decisión, se corrige arriba; no se compensa pidiendo al ejecutor que improvise arquitectura.
 
-La elección de modelos y esfuerzo respeta la configuración del usuario. Un modelo barato alojado puede ejecutar hoy; la ejecución local sigue siendo futura y opcional. Abaratar no elimina criterios de aceptación ni convierte una comprobación estructural en prueba de comportamiento.
+La elección de modelos y esfuerzo respeta la configuración del usuario. Un modelo barato alojado puede ejecutar; Ein no validó una ruta local concreta. Abaratar no elimina criterios de aceptación ni convierte una comprobación estructural en prueba de comportamiento.
 
 ## Contexto inicial y detalle a demanda
 

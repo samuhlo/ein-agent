@@ -1,160 +1,72 @@
 <div align="center">
-  <img src="docs-site/public/assets/brand/ein-logo.png" alt="Ein · coding-agent harness" width="440">
-  <h1><code>./EIN.sh</code></h1>
+  <img src="docs-site/public/assets/brand/ein-logo.png" alt="Logotipo de Ein" width="440">
+  <h1>Ein · proyecto legado</h1>
 
-**Hacer que pensar bien permita ejecutar de forma más sencilla, barata y local, manteniendo las exigencias de calidad.**
+**Un entorno de programación sobre Pi y Claude Code para convertir encargos ambiguos en cambios revisables.**
 
-[Documentación](https://samuhlo.github.io/ein-agent/) ·
-[Releases y alphas](https://github.com/samuhlo/ein-agent/releases) ·
-[Changelog](CHANGELOG.md) ·
-[Issues](https://github.com/samuhlo/ein-agent/issues)
+[El nuevo proyecto: n_ein](https://github.com/samuhlo/n_ein) ·
+[Documentación de Ein](https://samuhlo.github.io/ein-agent/) ·
+[Última release de Ein](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0) ·
+[Qué aprendí](docs/legacy-retrospective.md)
 
-`BETA`
-
+`LEGACY · versión final 0.99.0 · sin desarrollo de nuevas funciones`
 </div>
 
 ---
 
-Ein convierte trabajo ambiguo en cambios **pequeños, verificados y explicados**. Los modelos capaces resuelven las decisiones; los ejecutores reciben encargos acotados. Un modelo barato alojado sirve hoy como ejecutor. La ejecución local es un objetivo futuro y opcional: no necesitas hardware propio para usar Ein.
+Ein fue mi laboratorio para aprender a construir un entorno de agentes de programación de principio a fin: flujo de trabajo, adaptadores para dos runtimes, interfaz de terminal, instalador, recuperación, tests, evaluaciones y distribución. Sigue disponible como referencia y como instalación de su última versión. El desarrollo activo continúa en **[n_ein](https://github.com/samuhlo/n_ein)**, que conserva las partes útiles y simplifica el flujo diario.
 
-No es un agente ni un modelo: es la capa que rodea al agente para que el trabajo salga en piezas revisables, con el estado del cambio en disco y no en la conversación.
+## // 00_ EL PROBLEMA
 
-> _note: aislamiento primero. `pi` y `claude` siguen siendo tus runtimes vanilla; Ein entra por superficies explícitas, no por contaminación silenciosa._
+Un agente puede terminar una tarea y, aun así, dejar un cambio difícil de revisar: decisiones implícitas, demasiados archivos tocados, pruebas resumidas sin evidencia y contexto que desaparece al cerrar la sesión. Ein exploró una respuesta: definir el encargo, dividir el trabajo cuando hacía falta, registrar su estado en archivos y comprobar cada entrega de forma independiente.
 
-## // 00_ QUICK_START
+## // 01_ QUÉ CONSTRUÍ
+
+- **Un flujo proporcional.** Los cambios pequeños pueden ir directamente a implementación y verificación; los complejos pueden usar `scope → map → design → tasks → apply → verify → close`, con artefactos en `openspec/changes/<cambio>/`.
+- **Estado comprobable.** Herramientas calculan el avance, validan artefactos y distinguen un resultado verificado de una afirmación del agente. Un `verify: pass` cubre el contrato declarado; no promete ausencia de errores.
+- **Dos runtimes aislados.** Pi es el núcleo (`ein-pi`, `~/.pi-ein/agent`); Claude Code es un relevo opcional (`ein-cc`, `~/.claude-ein`). Los comandos y hogares normales `pi`/`~/.pi/agent` y `claude`/`~/.claude` quedan separados. La [matriz](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-matrix/) documenta las diferencias.
+- **Distribución recuperable.** `ein-install` instala, diagnostica, actualiza y restaura con copias de seguridad. `ein` abre la aplicación de terminal. El código está en TypeScript/Bun y la web en Astro/Starlight.
+
+```text
+ein-agent/
+├── runtime/       política, agentes y skills propias
+├── shared/        contratos y lógica compartidos
+├── vendor/skills/ skills de terceros identificadas
+├── ein-pi/        integración con Pi
+├── ein-cc/        integración con Claude Code
+├── installer/     binarios, instalación y recuperación
+├── tests/         contratos y regresiones
+├── evals/         ensayos y límites observados
+└── docs-site/     documentación pública
+```
+
+## // 02_ EVIDENCIA Y LÍMITES
+
+| Caso | Qué se comprobó | Qué no demuestra |
+| :--- | :--- | :--- |
+| [Contrato de documentación](https://samuhlo.github.io/ein-agent/02-workflow/real-workflow-example/) | Un validador encontró una fuente omitida que dos verificaciones anteriores no habían detectado. | Que toda la documentación sea correcta por pasar un validador. |
+| [Reducción de contexto](evals/orchestrator-context-2026-09-08.md) | En un ensayo controlado, la entrada inicial pasó de unas 41.100 a 23.800 tokens y el flujo siguió funcionando. | Un ahorro de coste total generalizable a otras sesiones. |
+| [Instalador y releases](.github/workflows/installer-release.yml) | La publicación construye paquetes, ejecuta pruebas de instalación y genera checksums. | Compatibilidad con Windows o con cada entorno posible. |
+
+Las [limitaciones conocidas](https://samuhlo.github.io/ein-agent/05-debug/known-limitations/) separan capacidades implementadas, pruebas realizadas y garantías que Ein no ofrece. El [changelog](CHANGELOG.md) conserva los cambios por versión. Las skills de terceros están en `vendor/skills/`, separadas del trabajo propio.
+
+## // 03_ ÚLTIMA VERSIÓN
+
+La última versión de este proyecto es [`installer-v0.99.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0). El [instalador](https://samuhlo.github.io/ein-agent/00-start/getting-started/) explica requisitos, comprobación y recuperación. Si ya tienes Ein, consulta sus notas antes de actualizar; los hogares de Ein y `n_ein` son independientes.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
 ein
 ```
 
-Este bootstrap selecciona el canal **estable**. Para probar una alpha, copia el comando con canal y tag de sus [notas de release](https://github.com/samuhlo/ein-agent/releases); `releases/latest` solo apunta a la estable.
+Para reparar una instalación, el comando independiente es `ein-install doctor`. El código del repositorio puede probarse sin publicar con `bun run dev:install`; ese despliegue modifica una instalación de desarrollo, como explica [installer/README.md](installer/README.md#desarrollo).
 
-Ein instala siempre su núcleo Pi. El menú solo pregunta si quieres añadir **Claude Code** como relevo opcional. Sin menú: `ein install --runtime pi` o `ein install --runtime both`.
+## // 04_ POR QUÉ EXISTE n_ein
 
-Guía completa en [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/).
+Ein enseñó que un contrato de fase y una prueba mecánica pueden descubrir errores reales. También mostró que siete fases fijas, delegación obligatoria y controles administrativos pueden costar más atención que la tarea que pretenden mejorar. **[n_ein](https://github.com/samuhlo/n_ein)** conserva launcher, instalador, identidad visual, continuidad Pi↔Claude, tareas visibles y prácticas de ingeniería; permite trabajo directo y delega cuando compensa. La [retrospectiva](docs/legacy-retrospective.md) explica las decisiones con ejemplos y evidencia, sin presentar el nuevo proyecto como una versión compatible de Ein.
 
-Para probar cambios del checkout sin publicar una alpha: `bun run dev:install`
-desde la raíz. Puedes previsualizar con `--dry-run` o solo compilar con
-`--build-only`. [Desarrollo local](installer/README.md#desarrollo).
+## // 05_ DOCUMENTACIÓN Y LICENCIA
 
-## // 01_ EL_PROBLEMA
+La [web](https://samuhlo.github.io/ein-agent/) documenta la versión final. [Arquitectura](https://samuhlo.github.io/ein-agent/01-concepts/orchestrator/), [flujo](https://samuhlo.github.io/ein-agent/02-workflow/workflow-overview/), [CLI](https://samuhlo.github.io/ein-agent/04-reference/cli/) y [recuperación](https://samuhlo.github.io/ein-agent/05-debug/uninstall-recovery/) siguen disponibles como referencia. El código propio se publica bajo [MIT](LICENSE); las dependencias y skills externas conservan sus licencias.
 
-Pides "arregla el login". El agente toca ocho ficheros y devuelve 400 líneas con un resumen optimista. Revisarlo cuesta más que haberlo escrito. Y al cerrar la conversación, el razonamiento se va con ella.
-
-Ein ataca las dos cosas: parte el trabajo en fases con contrato, y deja el estado en `openspec/` para que otra sesión, otra máquina u otro runtime lo retomen.
-
-Para simplificar el proyecto, Ein retira su integración con Engram: la continuidad se recupera desde los archivos, OpenSpec y Git, con investigaciones acotadas de `ein-scout` cuando hacen falta. La actualización conserva las notas y el binario existentes; no migra datos a otro sistema. [Qué cambia al actualizar](installer/README.md#actualizar-desde-una-instalación-con-engram).
-
-## // 02_ RUNTIME_SURFACE
-
-| PAPEL | SUPERFICIE | HOGAR DE EIN | RUNTIME VANILLA |
-| :--- | :--- | :--- | :--- |
-| **Núcleo · Pi** | `ein-pi` | `~/.pi-ein/agent` | `pi` → `~/.pi/agent` |
-| **Complemento · Claude Code** | `ein-cc` | `~/.claude-ein` | `claude` → `~/.claude` |
-
-Comparten el núcleo, **no las capacidades**. Las diferencias, sin maquillar, en la [matriz de runtimes](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-matrix/).
-
-## // 03_ SDD_ENGINE
-
-```text
-scope → map → design → tasks → apply → verify → close
-```
-
-Un cambio pequeño y bien definido puede ir directamente a `apply` y a una verificación independiente, sin crear un expediente SDD. Si faltan decisiones, se aclaran antes de editar. Una petición completa ya autorizada no necesita una confirmación ritual.
-
-En SDD, cada fase la ejecuta un subagente acotado y deja un artefacto en `openspec/changes/<cambio>/`. El parent decide, enruta y explica; no escribe el código.
-
-El padre carga el detalle del flujo cuando lo necesita y los hijos reciben contexto fresco con las skills pertinentes. `design` decide; `tasks` concreta grupos ejecutables; `apply` implementa; `verify` inspecciona código y ejecuta las comprobaciones por su cuenta. Los logs completos quedan referenciados, sin volcarlos en la conversación del padre.
-
-El estado de las fases y la validez estructural de los artefactos se calculan por herramienta. Eso ayuda a revisar el trabajo; no demuestra por sí solo que todas las decisiones o el código sean correctos.
-
-> _note: qué garantiza Ein y qué solo observa está escrito sin rebajas en [límites deterministas](https://samuhlo.github.io/ein-agent/01-concepts/deterministic-boundaries/)._
-
-## // 04_ BLUEPRINT
-
-```text
-ein-agent/
-├── runtime/        # agentes, skills propias, docs y prompts compartidos
-├── shared/         # contratos puros y puertos explícitos entre adaptadores
-├── vendor/skills/  # skills externas curadas; no son código propio
-├── ein-pi/         # adaptador Pi, launcher avanzado y migración
-├── ein-cc/         # adaptador Claude, launcher, sync y CLI SDD
-├── installer/      # ciclo de vida: ein-install, deploy, backups y releases
-├── tooling/        # mantenimiento del repositorio; no se distribuye
-└── docs-site/      # documentación pública (Astro + Starlight)
-```
-
-`runtime/` es el contenido propio y portable; `vendor/skills/` deja visible lo externo. `shared/contracts/` contiene lógica sin dependencia de adaptadores y `shared/ports/` concentra los pocos puentes que todavía tienen implementación Pi. Claude y el instalador consumen esas fronteras: no importan interiores de `ein-pi/agent/`. El instalador compone estas raíces para Pi y empaqueta las fuentes necesarias para Claude. El recorrido exacto de cada comando está en [Entry points](https://samuhlo.github.io/ein-agent/04-reference/entrypoints/).
-
-| LAYER | TECH |
-| :--- | :--- |
-| **Runtime** | Pi Coding Agent · Claude Code como complemento opcional |
-| **Core** | TypeScript + Bun |
-| **Workflow** | OpenSpec + SDD |
-| **Docs** | Astro + Starlight |
-| **Delivery** | GitHub Actions |
-
-## // 05_ COMMAND_DECK
-
-```bash
-ein                 # abre la aplicación: estado del proyecto y arrancar a trabajar
-ein-install update  # actualiza Ein y su template con backup
-ein doctor          # diagnostica el despliegue
-ein restore         # restaura desde un backup
-ein uninstall       # elimina Ein y conserva auth, secrets y sesiones
-```
-
-`ein` es la única puerta. Los verbos de ciclo de vida los ejecuta `ein-install`,
-que sigue en el `PATH` como arranque y escotilla de reparación: si lo que está
-roto es `ein`, la reparación no puede pasar por `ein`.
-
-```bash
-ein-install         # instala Ein y pregunta si añadir Claude Code
-ein-install doctor  # el mismo diagnóstico, sin depender de la aplicación
-ein-install update --channel alpha   # cambia a alpha y la deja como preferencia
-ein-install update --channel stable  # vuelve a estable y la deja como preferencia
-```
-
-Sin `--channel`, `update` reutiliza la preferencia guardada. Un `--dry-run`
-resuelve el canal indicado para enseñar el resultado, pero no cambia esa
-preferencia.
-
-Referencia completa en [CLI](https://samuhlo.github.io/ein-agent/04-reference/cli/).
-
-Acceso directo avanzado, sin pasar por la aplicación:
-
-```bash
-ein-pi             # Ein sobre Pi
-ein-cc             # Ein sobre Claude Code
-ein-cc-sdd status  # canal determinista SDD de Claude
-```
-
-## // 06_ DOCS
-
-| | |
-| :--- | :--- |
-| [Overview](https://samuhlo.github.io/ein-agent/00-start/overview/) | qué es y para quién |
-| [Getting Started](https://samuhlo.github.io/ein-agent/00-start/getting-started/) | instalar y comprobar |
-| [First Run](https://samuhlo.github.io/ein-agent/00-start/first-run/) | un cambio real de principio a fin |
-| [Workflow](https://samuhlo.github.io/ein-agent/02-workflow/workflow-overview/) | cuándo usar ad-hoc o SDD y cómo verificar |
-| [Runtimes](https://samuhlo.github.io/ein-agent/03-runtimes/runtime-overview/) | Pi, Claude Code y sus diferencias |
-| [Limitaciones](https://samuhlo.github.io/ein-agent/05-debug/known-limitations/) | qué está probado y qué no |
-
-## // 07_ ESTADO
-
-Beta. El registro mantenido de qué está probado, con qué evidencia y qué puede cambiar es [`docs/roadmap.md`](docs/roadmap.md). El rumbo que no se negocia vive en [`MANIFIESTO.md`](MANIFIESTO.md).
-
-Los cambios con impacto van al [CHANGELOG](CHANGELOG.md). Las releases se publican como tags `installer-v*` desde GitHub Actions.
-
-## // 08_ LICENCIA
-
-[MIT](LICENSE).
-
-<div align="center">
-
-<code>DESIGNED & CODED BY <a href="https://github.com/samuhlo">samuhlo</a></code>
-
-<small>Lugo, Galicia</small>
-
-</div>
+<div align="center"><small>Diseñado y desarrollado por <a href="https://github.com/samuhlo">Samuel López</a> · Lugo, Galicia</small></div>

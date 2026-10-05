@@ -23,6 +23,12 @@ El encargo define resultado, archivos, contexto y comprobaciones. Apply edita; o
 
 ## SDD standard
 
+Desde la última alpha, un cambio SDD nuevo necesita un acuerdo de intención
+registrado. Si la petición ya está cerrada, Ein conserva ese acuerdo sin repetir
+una entrevista; si quedan decisiones materiales, pregunta antes de `scope`. Un
+cambio histórico ya definido puede continuar. Esta puerta no se aplica a la
+ruta ad-hoc de una edición pequeña.
+
 ```text
 scope → map → design → tasks → apply → verify → close
 ```

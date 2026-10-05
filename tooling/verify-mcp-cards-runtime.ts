@@ -16,7 +16,7 @@ const options = native.resolveMcpToolRenderOptions();
 initTheme("dark");
 setKeybindings(new KeybindingsManager());
 setThemeInstance(loadThemeFromPath(join(import.meta.dir, "../ein-pi/agent/themes/ein.json"), "truecolor"));
-const tools = ["mcp", "neon_list_projects", "mcpScript", "mcp__neon"].map((name): ToolInfo => ({ name, description: "", parameters: {} as any, sourceInfo: { path: join(resolve(packageRoot), "index.ts"), source: "npm:pi-mcp-adapter@latest", scope: "user", origin: "package" } }));
+const tools = ["mcp", "neon_list_projects", "mcpScript", "mcp__neon"].map((name): ToolInfo => ({ name, description: "", parameters: {} as any, exposure: "direct", sourceInfo: { path: join(resolve(packageRoot), "index.ts"), source: "npm:pi-mcp-adapter@latest", scope: "user", origin: "package" } }));
 const release = installMcpRendererBridge(ToolExecutionComponent.prototype, { tools: () => tools, duration: () => 800 });
 assert(release, "Pi renderer seam changed");
 const snapshots: { mode: string; state: string; width: number; expanded: boolean; lines: string[] }[] = [];

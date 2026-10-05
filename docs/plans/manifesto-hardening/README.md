@@ -70,8 +70,9 @@ para los puntos indicados. Los puntos independientes pueden empezar antes.
    puntos previos integrados y paquete exacto autorizado. Un hash distinto por
    cambios anteriores previstos no es un bloqueo: comparar las anclas/API relevantes.
 3. Proporcionar al ejecutor este índice y una ficha completa mediante los
-   [13 prompts con entrega por PR](prompts.md). Ejecuta sus paquetes en orden,
-   sin pedir autorización entre ellos; cada paquete conserva sus límites de escritura.
+   un encargo por PR a partir de las fichas. Los prompts operativos se retiraron
+   al cerrar el proyecto; sus revisiones siguen en Git. Cada paquete conservaba
+   sus límites de escritura.
 4. Las decisiones de arquitectura de C ya están tomadas. El ejecutor resuelve
    detalles normales de código, nombres locales y formato; no crea otro diseño,
    cambia dependencias o amplía el producto por iniciativa propia.
@@ -138,9 +139,9 @@ verdes sin cambios, fallos o lagunas concretas que lo justifiquen.
 
 ## Encargo copiable para un ejecutor barato
 
-La entrega autorizada el 17 de septiembre es **una PR por punto completo**, no
-una por paquete. Los [prompts actualizados](prompts.md) autorizan rama, commit,
-push y apertura/actualización de PR; no autorizan merge ni release. Las PRs
+La entrega autorizada el 17 de septiembre era **una PR por punto completo**, no
+una por paquete. Los prompts operativos de entonces autorizaban rama, commit,
+push y apertura/actualización de PR; no merge ni release. Las PRs
 dependientes pueden encadenarse sobre una rama anterior verificada aún abierta,
 con diff limitado al punto nuevo. Un punto con fallos pendientes se publica
 como borrador y no cuenta como dependencia completada.

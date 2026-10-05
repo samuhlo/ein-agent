@@ -10,7 +10,7 @@ const theme = { fg: (_name: string, text: string) => text, bold: (text: string) 
 const base: McpCard = { tool: "mcp", args: { tool: "neon_list_projects", server: "neon", args: { search: "planificador" } }, started: true, partial: false, error: false, expanded: false, expandHint: "Ctrl+O" };
 const textResult = (text: string, details: unknown = { mode: "call", server: "neon", tool: "list_projects" }) => ({ content: [{ type: "text", text }], details });
 const render = (card: Partial<McpCard> = {}, width = 80) => renderMcpCard({ ...base, ...card }, width, theme).join("\n");
-const info = (name: string): ToolInfo => ({ name, description: "", parameters: {} as any, sourceInfo: { path: "/tmp/node_modules/pi-mcp-adapter/index.ts", source: "npm:pi-mcp-adapter@latest", scope: "user", origin: "package" } });
+const info = (name: string): ToolInfo => ({ name, description: "", parameters: {} as any, exposure: "direct", sourceInfo: { path: "/tmp/node_modules/pi-mcp-adapter/index.ts", source: "npm:pi-mcp-adapter@latest", scope: "user", origin: "package" } });
 
 describe("MCP cards", () => {
   test("pending, success, failure and cancellation have distinct compact states", () => {
