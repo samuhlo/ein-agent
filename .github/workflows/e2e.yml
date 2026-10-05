@@ -6,12 +6,18 @@ name: e2e
 
 on:
   workflow_dispatch:
+    inputs:
+      release_update_target:
+        description: "Tag publicado que probar desde installer-v0.95.0-alpha.3 antes de cortar otra release"
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   ubuntu-install:
+    if: ${{ inputs.release_update_target == '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -22,3 +28,16 @@ jobs:
 
       - name: E2E install en Docker (Ubuntu)
         run: ./e2e/docker-test.sh
+
+  published-upgrade:
+    if: ${{ inputs.release_update_target != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Probar actualización desde una release publicada
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_UPDATE_TARGET: ${{ inputs.release_update_target }}
+        run: ./e2e/release-update-test.sh installer-v0.95.0-alpha.3 "$RELEASE_UPDATE_TARGET"

@@ -14,6 +14,8 @@ Todos los cambios relevantes de Ein. El formato sigue
   El checker anterior solo admitía alphas: publicó los assets de `0.99.0` y
   falló antes de probar la actualización. `0.99.1` la sustituye como última
   versión tras completar ese recorrido.
+- El workflow E2E manual puede probar una release estable ya publicada antes
+  de cortar la siguiente, usando el mismo script de actualización.
 
 ### Documentation
 
