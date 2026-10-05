@@ -2,7 +2,7 @@
 title: "Qué es Ein"
 description: "Pensar bien para ejecutar con menos coste y mantener el trabajo revisable."
 sources: ["runtime/assets/orchestrator-core.md", "docs/adr/0006-remove-runtime-compressors.md", "README.md"]
-verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Esta página describe el funcionamiento de la **última versión de Ein**. La

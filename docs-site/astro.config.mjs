@@ -8,7 +8,7 @@ export default defineConfig({
 		starlight({
 			title: "EIN",
 			description: "Ein, proyecto legado: arquitectura, flujo, pruebas y lecciones que dieron lugar a n_ein.",
-			favicon: "/assets/brand/ein-logo.png",
+			favicon: "/ein-agent/assets/brand/ein-logo.png",
 			defaultLocale: "root",
 			locales: { root: { label: "Español", lang: "es" } },
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/samuhlo/ein-agent" }],

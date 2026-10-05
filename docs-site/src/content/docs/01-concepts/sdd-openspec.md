@@ -2,7 +2,7 @@
 title: "SDD y OpenSpec"
 description: "Estado del cambio en disco, desde el acuerdo hasta el archivo."
 sources: ["runtime/assets/orchestrator-core.md", "shared/sdd/sdd-routing-core.ts", "shared/sdd/sdd-close-compaction.ts"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 SDD organiza el trabajo por fases; OpenSpec mantiene los artefactos del cambio y las especificaciones del proyecto. En Ein el estado puede retomarse desde disco sin reconstruir toda la conversación.

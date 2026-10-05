@@ -2,7 +2,7 @@
 title: "Desinstalar y recuperar"
 description: "Recuperación del despliegue sin borrar estado privado."
 sources: ["installer/src/cli/uninstall.ts", "installer/src/core/uninstall-recovery.ts", "installer/src/core/backup.ts", "installer/src/cli/restore.ts", "installer/src/core/pi-migration.ts"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Puedes volver a `pi` o `claude` sin desinstalar Ein: esos comandos usan sus entradas vanilla. Esto no convierte automáticamente tus sesiones de Ein en sesiones del otro hogar.

@@ -2,7 +2,7 @@
 title: "Tu primer cambio"
 description: "De una petición concreta a una entrega comprobada."
 sources: ["runtime/assets/orchestrator-core.md", "runtime/agents/sdd-verify.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Abre `ein` desde el proyecto y expresa qué debe cambiar y cómo reconocerás que funciona. Por ejemplo:

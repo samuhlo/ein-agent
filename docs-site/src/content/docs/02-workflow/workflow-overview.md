@@ -2,7 +2,7 @@
 title: "Flujo de trabajo"
 description: "La ruta mínima útil, con decisiones claras y verificación independiente."
 sources: ["runtime/assets/orchestrator-core.md", "runtime/agents/sdd-tasks.md", "runtime/agents/sdd-verify.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Primero se entiende el resultado. Después se elige la ruta más pequeña que permita hacerlo y comprobarlo bien. Los modelos caros resuelven decisiones para que los ejecutores puedan trabajar con menos razonamiento y contexto.

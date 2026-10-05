@@ -2,7 +2,7 @@
 title: "Límites deterministas"
 description: "Qué calcula una herramienta y qué sigue requiriendo revisión."
 sources: ["runtime/assets/orchestrator-core.md", "shared/sdd/sdd-change-validation.ts", "shared/sdd/sdd-summary-write.ts", "ein-cc/sdd-cli/cli.ts"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Ein usa herramientas para los hechos calculables y modelos para interpretarlos. La distinción evita gastar razonamiento en contar tareas o reconstruir estado, pero no convierte las herramientas en infalibles.
