@@ -2,7 +2,7 @@
 title: "Contexto y ahorro"
 description: "Cómo Ein reduce entrada innecesaria sin perder acceso a la evidencia."
 sources: ["runtime/assets/orchestrator-core.md", "ein-pi/agent/lib/apply-packet-compile.ts", "runtime/agents/sdd-verify.md", "docs/adr/0006-remove-runtime-compressors.md"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 El ahorro buscado es el del trabajo completo con calidad comparable. Reducir tokens en un hijo ayuda, pero puede quedar anulado si el padre necesita más turnos, más entrada no cacheada o reintentos.

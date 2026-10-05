@@ -2,7 +2,7 @@
 title: "Pi Coding Agent"
 description: "El runtime principal de Ein y sus controles."
 sources: ["ein-pi/README.md", "runtime/assets/orchestrator-core.md", "ein-pi/agent/extensions/internal/ein-general-commands.ts", "ein-pi/agent/extensions/ein-intent.ts"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 Pi es el núcleo. Abre `ein` desde el proyecto y elige Pi. `ein-pi` ofrece acceso directo avanzado en Fish y fija el hogar `~/.pi-ein/agent` solo para esa ejecución.

@@ -2,7 +2,7 @@
 title: "De Ein a n_ein"
 description: "Qué enseñó Ein y cómo cambió el diseño del proyecto nuevo."
 sources: ["README.md", "docs/legacy-retrospective.md", "docs/roadmap.md"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 **Ein es un proyecto legado.** Esta web conserva la documentación de su última versión, [`installer-v0.99.1`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.1). El trabajo activo se desarrolla en **[n_ein](https://github.com/samuhlo/n_ein)**, un repositorio nuevo con instalación, evaluaciones y documentación propias.

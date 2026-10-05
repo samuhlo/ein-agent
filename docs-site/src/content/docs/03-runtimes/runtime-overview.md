@@ -2,7 +2,7 @@
 title: "Runtimes"
 description: "Pi como núcleo y Claude como relevo opcional."
 sources: ["ein-pi/README.md", "ein-cc/README.md"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 Pi Coding Agent es el runtime principal de Ein y se instala siempre. Claude Code es un complemento opcional con una superficie SDD menor. La entrada habitual es `ein`, que permite elegir el runtime disponible para el proyecto.

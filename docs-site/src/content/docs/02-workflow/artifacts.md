@@ -2,7 +2,7 @@
 title: "Artefactos y evidencia"
 description: "Qué conserva cada fase y cómo revisar el resultado."
 sources: ["runtime/agents/sdd-tasks.md", "runtime/agents/sdd-verify.md", "shared/sdd/sdd-summary-write.ts", "shared/sdd/sdd-close-compaction.ts"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 En SDD los artefactos viven en `openspec/changes/<cambio>/`. Su propósito es permitir ejecutar y revisar el trabajo sin cargar toda la conversación en cada hijo. La ruta ad-hoc no exige estos archivos.

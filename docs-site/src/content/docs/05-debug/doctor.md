@@ -2,7 +2,7 @@
 title: "Doctor"
 description: "Qué comprueba `ein-install doctor`, cómo leer su salida y qué hacer con cada nivel."
 sources: ["installer/src/cli/doctor.ts", "installer/src/core/verify.ts"]
-verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
+verified_rev: "e2758a40ca7420a74e39274a4961d57675a28d3e"
 ---
 
 ```bash
