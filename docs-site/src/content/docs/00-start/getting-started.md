@@ -1,13 +1,13 @@
 ---
-title: "Instalar Ein"
-description: "Instalación estable o alpha, requisitos y primera comprobación."
+title: "Instalar la versión final de Ein"
+description: "Requisitos, última release y primera comprobación del proyecto legado."
 sources: ["installer/install.sh", "installer/src/core/deps.ts", "installer/README.md"]
-verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
-Ein soporta macOS y Linux, en ARM64 y x64. Windows no está soportado. Pi es el núcleo y requiere Node **22.19.0 o posterior**; si no cumple el requisito, el instalador se detiene con instrucciones. Los binarios del instalador son standalone; el runtime tiene sus propias dependencias y autenticación.
+Ein es un [proyecto legado](/ein-agent/00-start/legacy-and-nein/). Esta guía instala su [última release, `installer-v0.99.0`](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0); para el desarrollo activo consulta [n_ein](https://github.com/samuhlo/n_ein). Ein soporta macOS y Linux, en ARM64 y x64. Windows no está soportado. Pi es el núcleo y requiere Node **22.19.0 o posterior**; si no cumple el requisito, el instalador se detiene con instrucciones. Los binarios del instalador son standalone; el runtime tiene sus propias dependencias y autenticación.
 
-## Canal estable
+## Versión final estable
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/samuhlo/ein-agent/main/installer/install.sh | bash
@@ -16,7 +16,7 @@ ein
 
 El bootstrap descarga el instalador, comprueba el asset y lo ejecuta. Conserva `ein-install` como herramienta de ciclo de vida e instala `ein` como aplicación de terminal. Puede ser necesario abrir una terminal nueva para recoger el PATH.
 
-## Probar una alpha
+## Instalar una alpha histórica
 
 El comando anterior selecciona **estable**. Para una alpha, copia el comando exacto de sus [notas de release](https://github.com/samuhlo/ein-agent/releases): el bootstrap exige juntos `--release-channel` y `--release-tag`. El enlace de GitHub `releases/latest` no selecciona prereleases.
 
@@ -26,7 +26,7 @@ Si ya tienes Ein:
 ein-install update --channel alpha
 ```
 
-Guarda alpha como preferencia tras una actualización correcta. Para volver al canal estable usa `ein-install update --channel stable`. Para fijar una versión, pasa a `update` el tag exacto de sus notas. Abre una sesión nueva de Ein después de actualizar.
+Guarda alpha como preferencia tras una actualización correcta. Para volver a la versión final usa `ein-install update --channel stable`. Para fijar una versión, pasa a `update` el tag exacto de sus notas. Abre una sesión nueva de Ein después de actualizar. Las alphas se conservan para reproducir resultados históricos, no reciben nuevas funciones.
 
 ## Pi y Claude
 
@@ -50,7 +50,7 @@ cd /ruta/a/tu/proyecto
 ein
 ```
 
-Doctor diagnostica el despliegue, no la calidad de tu proyecto. Configura la autenticación y los modelos que vayas a usar en el runtime. Puedes empezar con servicios alojados; el modelo local es un objetivo futuro y opcional.
+Doctor diagnostica el despliegue, no la calidad de tu proyecto. Configura la autenticación y los modelos que vayas a usar en el runtime. Ein no validó un modelo local concreto.
 
 Para probar código del repositorio sin publicar, sigue [desarrollo local](https://github.com/samuhlo/ein-agent/blob/main/installer/README.md#desarrollo). Ese despliegue modifica tu instalación activa: no crea un perfil desechable.
 

@@ -6,12 +6,9 @@ import { join } from "node:path";
 // README afirme cosas sobre release, instalación o arquitectura que las fuentes
 // del repositorio contradicen.
 //
-// Lo que SÍ cambió (2026-08): el README dejó de declarar un número de versión y
-// pasó a enlazar las releases. El índice incluye alphas; `latest` solo la estable. La versión que no se escribe no se queda
-// desfasada, así que aquí se invierte la comprobación: antes se exigía que el
-// literal coincidiera; ahora se prohíbe el literal. La coherencia de versión
-// entre CHANGELOG, package.json, version.ts y el workflow se sigue verificando,
-// que es donde vive de verdad.
+// Al cerrar Ein como legado, el README fija su última release. Esa versión debe
+// coincidir con CHANGELOG, package.json y version.ts; ya no envejece porque no
+// habrá una siguiente serie de Ein.
 //
 // También se retiraron las aserciones atadas a nombres de sección concretos
 // (`UPDATE_DECK`, `RELEASE`, `SOURCE_OF_TRUTH`): el README se reorganizó al
@@ -56,30 +53,25 @@ describe("contrato offline del README para release e instalación", () => {
     expect(workflow).toContain('"installer-v*"');
   });
 
-  test("el README no fija versiones: enlaza la release vigente", () => {
-    // Un literal de versión en el README envejece en silencio. Ya pasó: llegó a
-    // declarar v0.40.0 con el instalador en 0.42.0. Prohibirlo es más barato que
-    // vigilarlo.
-    expect(readme).not.toMatch(/v?\d+\.\d+\.\d+/);
-    expect(readme).toContain(`[Releases y alphas](${REPOSITORY_URL}/releases)`);
-    expect(readme).toContain("canal **estable**");
+  test("el README fija la última release y enlaza el proyecto nuevo", () => {
+    expect(readme).toContain(`installer-v${release.version}`);
+    expect(readme).toContain(`${REPOSITORY_URL}/releases/tag/installer-v${release.version}`);
+    expect(readme).toContain("https://github.com/samuhlo/n_ein");
+    expect(readme).toContain("LEGACY");
     expect(readme).not.toContain("einDisplayVersion");
   });
 
-  test("pone el bootstrap antes de la arquitectura y usa la ruta buena", () => {
+  test("mantiene una instalación verificable y separa la reparación", () => {
     const escaped = INSTALL_COMMAND.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const commandMatches = readme.match(new RegExp(escaped, "g")) ?? [];
 
-    expect(readme).toMatch(/<h1><code>\.\/EIN\.sh<\/code><\/h1>/);
+    expect(readme).toContain("<h1>Ein · proyecto legado</h1>");
     expect(commandMatches).toHaveLength(1);
     expect(readme).not.toContain("https://raw.githubusercontent.com/samuhlo/ein-agent/main/install.sh");
     expect(readme).toContain("Pi");
     expect(readme).toContain("Claude Code");
-    expect(readme).toContain("ein install --runtime pi`");
-    expect(readme).toContain("ein install --runtime both`");
-    expect(readme).not.toContain("--runtime pi|both");
-    expect(readme).not.toContain("--runtime pi|claude|both");
-    expect(readme.indexOf("## // 00_ QUICK_START")).toBeLessThan(readme.indexOf("## // 04_ BLUEPRINT"));
+    expect(readme).toContain("ein-install doctor");
+    expect(readme.indexOf("## // 00_ EL PROBLEMA")).toBeLessThan(readme.indexOf("## // 03_ ÚLTIMA VERSIÓN"));
   });
 
   test("describe el núcleo, el complemento y mantiene aislados los runtimes vanilla", () => {
@@ -93,8 +85,8 @@ describe("contrato offline del README para release e instalación", () => {
     for (const phase of ["scope", "map", "design", "tasks", "apply", "verify", "close"]) {
       expect(readme).toContain(phase);
     }
-    expect(readme).toContain("`runtime/` es el contenido propio y portable");
-    expect(readme).toContain("`vendor/skills/` deja visible lo externo");
+    expect(readme).toContain("runtime/");
+    expect(readme).toContain("vendor/skills/");
   });
 
   test("enlaza la documentación publicada", () => {
@@ -107,8 +99,8 @@ describe("contrato offline del README para release e instalación", () => {
 
   test("conserva la firma visual y no cuela marketing", () => {
     expect(readme).toMatch(/^## \/\/ \d{2}_ /m);
-    expect(readme).toContain("> _note:");
-    expect(readme).toContain("DESIGNED & CODED BY");
+    expect(readme).toContain("## // 02_ EVIDENCIA Y LÍMITES");
+    expect(readme).toContain("Diseñado y desarrollado por");
     expect(readme).toContain("Lugo, Galicia");
     expect(readme).not.toMatch(/img\.shields\.io|LIVE_DEMO/i);
     expect(readme).not.toMatch(/brew\s+install\s+ein\b/i);
@@ -118,7 +110,7 @@ describe("contrato offline del README para release e instalación", () => {
     const urls = readme.match(/https?:\/\/[^)\s"<]+/g) ?? [];
 
     expect(urls).toEqual(
-      expect.arrayContaining([INSTALL_COMMAND.split(" ")[2], `${REPOSITORY_URL}/releases`, DOCS_URL]),
+      expect.arrayContaining([INSTALL_COMMAND.split(" ")[2], `${REPOSITORY_URL}/releases/tag/installer-v${release.version}`, "https://github.com/samuhlo/n_ein", DOCS_URL]),
     );
     expect(
       urls.every(

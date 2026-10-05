@@ -1,4 +1,8 @@
 <!-- ein:init rev=5a6b65a generado=2026-08-28 · refresca con /ein:init -->
+> Archivo histórico generado durante el desarrollo de Ein. El estado final y
+> el nuevo proyecto se explican en [README.md](README.md) y
+> [docs/legacy-retrospective.md](docs/legacy-retrospective.md).
+
 ## Overview
 <!-- CURADA — 2-3 líneas: qué es el proyecto y para quién. -->
 Harness de coding-agent construido sobre Pi Coding Agent, con Claude Code como relevo opcional. Convierte trabajo ambiguo en cambios pequeños, verificados y explicados, con el estado del cambio en disco (`openspec/`) y no en la conversación.

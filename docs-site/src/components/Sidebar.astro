@@ -5,6 +5,11 @@ import Default from "@astrojs/starlight/components/Sidebar.astro";
 import Shortcuts from "./Shortcuts.astro";
 ---
 
+<div class="legacy-notice">
+	<strong>Ein · versión final 0.99.0</strong>
+	<span>Proyecto legado. El desarrollo continúa en <a href="https://github.com/samuhlo/n_ein">n_ein</a>.</span>
+</div>
+
 <Default><slot /></Default>
 
 <Shortcuts />
@@ -17,6 +22,20 @@ import Shortcuts from "./Shortcuts.astro";
 </div>
 
 <style>
+	.legacy-notice {
+		display: grid;
+		gap: 0.35rem;
+		margin: 0.5rem 0 1.25rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-hairline);
+		font-size: 0.8rem;
+		line-height: 1.45;
+		color: var(--sl-color-gray-2);
+	}
+
+	.legacy-notice strong { color: var(--sl-color-white); }
+	.legacy-notice a { color: var(--ein-yellow); }
+
 	.ein-statusbar {
 		display: flex;
 		flex-wrap: wrap;

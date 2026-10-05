@@ -7,8 +7,8 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: "EIN",
-			description: "Pensar bien para ejecutar de forma más sencilla, barata y local, manteniendo las exigencias de calidad.",
-			favicon: "/assets/brand/ein-logo.png",
+			description: "Ein, proyecto legado: arquitectura, flujo, pruebas y lecciones que dieron lugar a n_ein.",
+			favicon: "/ein-agent/assets/brand/ein-logo.png",
 			defaultLocale: "root",
 			locales: { root: { label: "Español", lang: "es" } },
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/samuhlo/ein-agent" }],
@@ -20,6 +20,7 @@ export default defineConfig({
 				Pagination: "./src/components/Pagination.astro",
 			},
 			sidebar: [
+				{ label: "Ein → n_ein", link: "00-start/legacy-and-nein/" },
 				{ label: "00 · START", items: [{ autogenerate: { directory: "00-start" } }] },
 				{ label: "01 · CONCEPTS", items: [{ autogenerate: { directory: "01-concepts" } }] },
 				{ label: "02 · WORKFLOW", items: [{ autogenerate: { directory: "02-workflow" } }] },

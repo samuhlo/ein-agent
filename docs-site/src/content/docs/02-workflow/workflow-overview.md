@@ -2,7 +2,7 @@
 title: "Flujo de trabajo"
 description: "La ruta mínima útil, con decisiones claras y verificación independiente."
 sources: ["runtime/assets/orchestrator-core.md", "runtime/agents/sdd-tasks.md", "runtime/agents/sdd-verify.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Primero se entiende el resultado. Después se elige la ruta más pequeña que permita hacerlo y comprobarlo bien. Los modelos caros resuelven decisiones para que los ejecutores puedan trabajar con menos razonamiento y contexto.
@@ -22,6 +22,12 @@ encargo acotado → apply → verify independiente → explicación
 El encargo define resultado, archivos, contexto y comprobaciones. Apply edita; otro hijo con contexto fresco revisa y comprueba. No se exige crear un directorio SDD ni un informe en disco para justificar una modificación pequeña.
 
 ## SDD standard
+
+Desde la última alpha, un cambio SDD nuevo necesita un acuerdo de intención
+registrado. Si la petición ya está cerrada, Ein conserva ese acuerdo sin repetir
+una entrevista; si quedan decisiones materiales, pregunta antes de `scope`. Un
+cambio histórico ya definido puede continuar. Esta puerta no se aplica a la
+ruta ad-hoc de una edición pequeña.
 
 ```text
 scope → map → design → tasks → apply → verify → close

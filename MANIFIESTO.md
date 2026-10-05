@@ -1,5 +1,11 @@
 # Manifiesto Ein
 
+> **Documento histórico.** Recoge los principios que guiaron Ein durante su
+> desarrollo. El proyecto quedó cerrado como legado en la versión 0.99.0;
+> [esta retrospectiva](docs/legacy-retrospective.md) explica qué principios
+> resistieron las pruebas y qué decisiones cambiaron en
+> [n_ein](https://github.com/samuhlo/n_ein). No es el roadmap activo.
+
 Este documento existe para no perder el norte. No describe lo que Ein es hoy:
 describe lo que Ein **tiene que ser**. Cuando una decisión de producto choque
 con este documento, gana este documento. Cuando este documento choque con la

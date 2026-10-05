@@ -2,7 +2,7 @@
 title: "Contexto y ahorro"
 description: "Cómo Ein reduce entrada innecesaria sin perder acceso a la evidencia."
 sources: ["runtime/assets/orchestrator-core.md", "ein-pi/agent/lib/apply-packet-compile.ts", "runtime/agents/sdd-verify.md", "docs/adr/0006-remove-runtime-compressors.md"]
-verified_rev: "7c3dd072fdc872b46f680e09325c722ce59efa1b"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 El ahorro buscado es el del trabajo completo con calidad comparable. Reducir tokens en un hijo ayuda, pero puede quedar anulado si el padre necesita más turnos, más entrada no cacheada o reintentos.
@@ -36,6 +36,6 @@ El padre recibe un resultado compacto, no tablas y logs enteros. En SDD la evide
 
 Distingue tamaño de contexto, tokens procesados acumulados, entrada cacheada, entrada nueva, salida, coste y tiempo. Sumar tokens de muchos turnos no mide el máximo de contexto. Un porcentaje cacheado tampoco demuestra por sí solo ahorro de dinero.
 
-Compara tareas equivalentes con el mismo nivel de calidad y considera reintentos, fallos y trabajo de revisión. Una ejecución por variante no demuestra ahorro universal. La ejecución local necesita pruebas con el modelo y hardware reales antes de declararse validada.
+Compara tareas equivalentes con el mismo nivel de calidad y considera reintentos, fallos y trabajo de revisión. Una ejecución por variante no demuestra ahorro universal. Ein terminó sin validar ejecución local en un modelo y hardware concretos.
 
 Hypa y Headroom están retirados; se conservan el manejo nativo de Pi y las vistas acotadas de verify. La [decisión](https://github.com/samuhlo/ein-agent/blob/main/docs/adr/0006-remove-runtime-compressors.md) explica la evidencia y sus límites.

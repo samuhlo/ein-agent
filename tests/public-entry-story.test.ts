@@ -13,7 +13,7 @@ const read = (relative: string): string => readFileSync(join(ROOT, relative), "u
 describe("the story every surface tells", () => {
   test("the README names one public entry and the repair hatch", () => {
     const readme = read("README.md");
-    const deck = readme.slice(readme.indexOf("COMMAND_DECK"), readme.indexOf("## // 06_"));
+    const deck = readme.slice(readme.indexOf("## // 03_ ÚLTIMA VERSIÓN"), readme.indexOf("## // 04_"));
 
     expect(deck).toContain("ein-install");
     // `ein` sin argumentos abre la aplicación; el menú de acciones ya no existe.

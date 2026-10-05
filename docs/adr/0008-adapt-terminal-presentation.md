@@ -1,4 +1,4 @@
-# 0006 — Adaptar la presentación del terminal
+# ADR 0008 — Adaptar la presentación del terminal
 
 Ein muestra el trabajo en curso con un destello junto al editor. El indicador usa
 el temporizador y el ciclo de vida nativos de Pi: desaparece al terminar o cancelar

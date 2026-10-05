@@ -2,7 +2,7 @@
 title: "Integraciones opcionales"
 description: "Qué aporta cada integración y qué implica omitirla."
 sources: ["installer/src/core/deps.ts", "installer/src/core/deploy.ts", "ein-cc/sync.ts", "runtime/AGENTS.md", "runtime/agents/ein-scout.md", "installer/README.md", "runtime/assets/orchestrator-core.md", "docs/adr/0006-remove-runtime-compressors.md"]
-verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Las integraciones añaden capacidades concretas; no sustituyen el contrato de trabajo ni la verificación. Una integración puede estar instalada pero desactivada, o configurada y temporalmente inaccesible.

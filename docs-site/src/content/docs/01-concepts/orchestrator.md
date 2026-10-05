@@ -2,7 +2,7 @@
 title: "El orquestador"
 description: "Dónde se toman decisiones y qué se delega."
 sources: ["runtime/assets/orchestrator-core.md", "runtime/assets/orchestrator.md"]
-verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 El orquestador mantiene la conversación, aclara decisiones, elige el siguiente paso y explica los resultados. El código de aplicación lo modifica apply. La investigación extensa se delega a scout para que vuelva con hallazgos y fuentes, sin llenar la conversación principal de lecturas.
@@ -11,7 +11,7 @@ El orquestador mantiene la conversación, aclara decisiones, elige el siguiente 
 
 El trabajo de razonamiento se reparte entre el padre, scope, design y tasks. El objetivo es que apply reciba una ruta corta: qué cambiar, dónde, qué conservar, cómo comprobarlo y cuándo parar. Si el encargo carece de una decisión, se corrige arriba; no se compensa pidiendo al ejecutor que improvise arquitectura.
 
-La elección de modelos y esfuerzo respeta la configuración del usuario. Un modelo barato alojado puede ejecutar hoy; la ejecución local sigue siendo futura y opcional. Abaratar no elimina criterios de aceptación ni convierte una comprobación estructural en prueba de comportamiento.
+La elección de modelos y esfuerzo respeta la configuración del usuario. Un modelo barato alojado puede ejecutar; Ein no validó una ruta local concreta. Abaratar no elimina criterios de aceptación ni convierte una comprobación estructural en prueba de comportamiento.
 
 ## Contexto inicial y detalle a demanda
 

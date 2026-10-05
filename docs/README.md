@@ -1,25 +1,17 @@
-# Documentación interna vigente
+# Documentación del proyecto legado
 
-Este directorio contiene documentación interna vigente y trabajo de corrección
-solicitado explícitamente:
+El [README](../README.md) presenta Ein, la [web](https://samuhlo.github.io/ein-agent/) documenta su última versión y la [retrospectiva](legacy-retrospective.md) recoge resultados, límites y el paso a [n_ein](https://github.com/samuhlo/n_ein).
 
-- [`roadmap.md`](roadmap.md): trabajo actual y siguiente.
-- [`plans/2026-09-23-recuperacion-arneses.md`](plans/2026-09-23-recuperacion-arneses.md):
-  recuperación de Pi y Claude tras alpha.10, con criterios de aceptación.
-- [`adr/`](adr/): decisiones duraderas y su razón.
-- [`audits/2026-09-16-manifiesto.md`](audits/2026-09-16-manifiesto.md): auditoría
-  de garantías del arnés, con alcance, evidencia y límites.
-- [`plans/manifesto-hardening/README.md`](plans/manifesto-hardening/README.md):
-  archivo del plan de 13 hallazgos que desembocó en alpha.10.
+| Material | Cómo leerlo ahora |
+| :--- | :--- |
+| [Estado final](roadmap.md) | Alcance de la última release; sustituye el roadmap activo. |
+| [ADR](adr/) | Decisiones y compromisos tomados durante el desarrollo. Un estado `accepted` describe aquella decisión, no un trabajo futuro prometido. |
+| [Auditoría de garantías](audits/2026-09-16-manifiesto.md) | Hallazgos de la revisión de septiembre y sus pruebas de entonces. |
+| [Plan de corrección de 13 hallazgos](plans/manifesto-hardening/README.md) | Diseño histórico y trazabilidad de la ejecución hasta alpha.10. |
+| [Recuperación de los arneses](plans/2026-09-23-recuperacion-arneses.md) | Investigación de incidentes de septiembre, no instrucciones de operación vigentes. |
+| [Evaluaciones](../evals/) | Ensayos con muestras, modelos, resultados negativos y límites declarados. |
+| [Cambios OpenSpec](../openspec/changes/archive/) | Resúmenes de cambios cerrados; `openspec/specs/` conserva los contratos del código final. |
 
-El comportamiento vigente vive en `openspec/specs/`, las guías de usuario en `docs-site/`, los cambios cerrados en sus resúmenes OpenSpec y el detalle histórico en Git.
-
-## Lectura recomendada
-
-- [Manifiesto](../MANIFIESTO.md): principio económico, calidad y simplificación.
-- [Ejecución barata verificable](adr/0005-make-cheap-apply-verifiable.md): contratos para acercar apply a modelos baratos y, en el futuro, locales.
-- [Retirada de compresores](adr/0006-remove-runtime-compressors.md): por qué Ein deja Hypa y Headroom, y qué conserva para ahorrar contexto.
-- [Documentación pública](https://samuhlo.github.io/ein-agent/): instalación, flujos, runtimes y recuperación.
-- [Changelog](../CHANGELOG.md) y [releases](https://github.com/samuhlo/ein-agent/releases): cambios incluidos en cada versión publicada.
-
-Las guías del checkout describen su código. Un cambio integrado en `main` puede estar pendiente de release; las notas del tag indican qué binario contiene cada corrección. Los informes de `evals/` son evidencia de una revisión y escenario concretos, no una certificación permanente ni una promesa de ahorro universal.
+Se han retirado del índice de trabajo las tareas y plazos ya abandonados. Los documentos históricos permanecen para que las decisiones se puedan auditar sin convertirlos en instrucciones actuales.
+Los prompts operativos de la campaña de septiembre, que ya no tenían consumidor,
+se retiraron del árbol final; Git conserva su revisión original.

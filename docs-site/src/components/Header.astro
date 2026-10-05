@@ -11,7 +11,8 @@ const path = Astro.url.pathname;
 
 const nav = [
 	{ key: "H", label: "Portada", href: `${base}/`, match: "exact" as const },
-	{ key: "I", label: "Instalar", href: `${base}/00-start/getting-started/`, match: "exact" as const },
+	{ key: "N", label: "n_ein", href: "https://github.com/samuhlo/n_ein", external: true },
+	{ key: "I", label: "Instalar Ein", href: `${base}/00-start/getting-started/`, match: "exact" as const },
 	{ key: "D", label: "Documentación", href: `${base}/00-start/overview/`, match: "section" as const },
 	{ key: "G", label: "GitHub", href: "https://github.com/samuhlo/ein-agent", external: true },
 	{ key: "R", label: "Releases", href: "https://github.com/samuhlo/ein-agent/releases", external: true },

@@ -2,7 +2,7 @@
 title: "Resolver problemas"
 description: "Diagnóstico, actualización, fases bloqueadas y documentación."
 sources: ["installer/src/cli/doctor.ts", "installer/src/cli/update.ts", "installer/src/cli/uninstall.ts", "ein-cc/README.md", "docs/adr/0006-remove-runtime-compressors.md"]
-verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Empieza con `ein-install doctor`. Revisa el diagnóstico antes de reparar; un problema de autenticación, PATH o dependencia no se resuelve siempre reinstalando.
@@ -69,6 +69,8 @@ bun ein-pi/agent/lib/docs-site-drift-detector.ts --check-sources
 bun ein-pi/agent/lib/docs-site-drift-detector.ts
 ```
 
-El primer comando comprueba rutas declaradas; el segundo detecta cambios desde la revisión documentada. Un resultado limpio no sustituye revisar el significado del texto. Las guías del checkout pueden describir código aún pendiente de release.
+El primer comando comprueba rutas declaradas; el segundo detecta cambios desde la revisión documentada. Un resultado limpio no sustituye revisar el significado del texto. La [release final](https://github.com/samuhlo/ein-agent/releases/tag/installer-v0.99.0) fija qué paquete corresponde a estas guías.
 
-Si persiste el problema, abre un [issue](https://github.com/samuhlo/ein-agent/issues) con versión, plataforma, pasos y diagnóstico. Revisa que la salida no incluya credenciales antes de publicarla.
+Ein ya no recibe nuevas funciones ni incidencias. Conserva versión, plataforma,
+pasos y diagnóstico si necesitas investigar una instalación existente; revisa
+que el informe no incluya credenciales antes de compartirlo.

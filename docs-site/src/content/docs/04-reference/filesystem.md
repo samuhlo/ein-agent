@@ -2,7 +2,7 @@
 title: "Archivos y hogares"
 description: "Qué pertenece al proyecto, al runtime y al instalador."
 sources: ["installer/src/core/paths.ts", "installer/src/core/deploy.ts", "ein-cc/sync.ts", "installer/src/core/uninstall-plan.ts", "ein-pi/README.md", "ein-cc/README.md"]
-verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Ein separa estado del proyecto, hogares de runtimes y herramientas de instalación. La ubicación exacta del binario depende del directorio elegido por el bootstrap.

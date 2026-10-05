@@ -2,14 +2,14 @@
 title: "Claude Code"
 description: "Relevo SDD con límites explícitos."
 sources: ["ein-cc/README.md", "ein-cc/sync.ts", "ein-cc/sdd-cli/cli.ts"]
-verified_rev: "abe4ee268ab553398fdc08cf57f93a4e236551e4"
+verified_rev: "ff65b03e5a71854170ca2a5e361e7410208e3e71"
 ---
 
 Añade Claude con `ein-install install --runtime both`. La aplicación `ein` permite arrancarlo; `ein-cc` es el acceso avanzado en Fish. Su hogar de configuración es `~/.claude-ein`.
 
 ## Estado compartido, sesiones separadas
 
-Claude consume los artefactos en `openspec/` y los ajustes de `.pi/ein/`. Puede retomar una entrevista de intención guardada, pero el trabajo ordinario no necesita crearla. Pi sigue siendo el runtime principal.
+Claude consume los artefactos en `openspec/` y los ajustes de `.pi/ein/`. Puede retomar una entrevista de intención guardada, pero el trabajo ordinario no necesita crearla. Un cambio SDD nuevo requiere primero el acuerdo registrado en Pi. Pi sigue siendo el runtime principal.
 
 `/ein:handoff status`, `/ein:handoff to pi` y `/ein:handoff to claude` permiten consultar o cambiar de runtime. El destino empieza una sesión nueva; no se transfieren historiales privados.
 
